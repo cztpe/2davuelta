@@ -275,7 +275,7 @@ function renderFaltaSummary(){
   const nm=document.getElementById("natMargin");let nmHtml="";
   if(EST.leader&&EST.trailing)nmHtml=`lidera ${candShort(EST.leader).toLowerCase()} por ${fmt(EST.ventaja)} votos (${(EST.ventaja/valid*100).toFixed(3)} pp)`;
   if(EST.jeeEnv!=null||EST.jeePend!=null){const env=EST.jeeEnv||0,pen=EST.jeePend||0;
-    nmHtml+=`<br>de las ${fmt(EST.pendActas)} actas pendientes, ${fmt(env)} estan enviadas al jee y ${fmt(pen)} pendientes en el jee: son actas observadas, en manos del jurado.`;}
+    nmHtml+=`<br>de las ${fmt(EST.pendActas)} actas que faltan, ${fmt(env)} estan enviadas al jee (observadas, las resuelve el jurado) y ${fmt(pen)} siguen pendientes de contabilizar.`;}
   nm.innerHTML=nmHtml;
 }
 function renderVerdict(){
@@ -301,9 +301,9 @@ function renderRem(){
   t.innerHTML=`<div class="lc faint">ubicacion de lo pendiente: en que zonas esta hoy el voto que falta</div>`+
     DB.cands.map(c=>`<span class="lc" style="margin-right:16px">zonas que hoy gana ${candShort(c).toLowerCase()}: <b class="num">${(EST.pvByLeader[c.code]/tpv*100).toFixed(1)}%</b> de lo pendiente</span>`).join("");
   let met="metodo: votos por contar = actas pendientes x votos por acta ya contada en la misma zona; el reparto sigue el resultado actual local. estimacion descriptiva, no pronostico.";
-  const jeeTot=(EST.jeeEnv||0)+(EST.jeePend||0);
-  if(jeeTot>0&&EST.pendActas>0&&jeeTot>=EST.pendActas*0.8)
-    met+=" atencion: practicamente todo lo que falta son actas observadas en el jee (enviadas o pendientes en el jurado). esas actas pueden corregirse o anularse y su reparto no tiene por que parecerse al ya contado, asi que la estimacion es especialmente fragil aca: no modela anulaciones ni el criterio del jurado.";
+  const env=EST.jeeEnv||0,pen=EST.jeePend||0;
+  if(env>0||pen>0)
+    met+=` de lo que falta, ~${fmt(env)} actas estan observadas y enviadas al jee (el jurado puede validarlas, corregirlas o anularlas, y eso no lo modelo); las otras ~${fmt(pen)} estan pendientes de contabilizar: voto mas normal, aunque puede diferir por venir de zonas que reportan tarde.`;
   else met+=" las actas tardias (rurales, observadas, extranjero) suelen votar distinto.";
   document.getElementById("metodo").textContent=met;
 }
