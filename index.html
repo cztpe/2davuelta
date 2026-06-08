@@ -142,6 +142,7 @@
           <button data-mm="margen" class="lc">margen</button>
           <button data-mm="avance" class="lc">avance</button>
           <button data-mm="part" class="lc">participacion</button>
+          <button data-mm="observadas" class="lc">observadas (jee)</button>
         </div>
         <div class="map" id="map"></div>
         <div class="legend lc" id="mapLegend"></div>
@@ -164,6 +165,17 @@
       <div class="panel"><h2>escenarios</h2><div class="tablewrap"><table id="scenTbl"><thead></thead><tbody></tbody></table></div>
         <div class="note lc">"% para la rezagada" = porcentaje de los votos validos que faltan que tendria que llevarse · margen final positivo = sigue arriba el lider actual</div></div>
       <div class="panel"><h2>simulador: ¿y si lo que falta se inclina?</h2><div id="simWrap"></div></div>
+    </div>
+
+    <div id="viewObservadas" class="hidden">
+      <div class="panel"><h2>de donde provienen las actas observadas</h2><div id="obsResumen"></div>
+        <div class="note lc">"observadas" = actas enviadas al jee (jurado electoral especial) porque presentan errores, ilegibilidad o inconsistencias. el jurado las valida, corrige o anula. los % son el resultado ACTUAL de esa zona (proxy de hacia donde se inclinaria si se resuelven normal), no un pronostico.</div></div>
+      <div class="panel">
+        <div class="tabs" id="obsLvlTabs"></div>
+        <div class="tabs" id="obsAmbTabs"></div>
+        <div class="tablewrap"><table id="obsTbl"><thead></thead><tbody></tbody></table></div>
+        <div class="note lc">click en cualquier encabezado para ordenar de mayor a menor · muestra hasta 100 filas segun el orden · "votos obs." es estimado (actas observadas x votos por acta de la zona)</div>
+      </div>
     </div>
 
   </div>
@@ -189,6 +201,7 @@ function getCss(v){return getComputedStyle(document.documentElement).getProperty
 
 let SNAPS=null,DB=null,EST=null;
 let state=Object.assign({view:"falta",snapIdx:-1,lvl:"distrito",amb:"todos",scenCand:null,pendSort:{col:"pend",dir:-1},
+  obsLvl:"distrito",obsAmb:"todos",obsSort:{col:"obs",dir:-1},
   node:"__root__",mapMode:"ganador",browseSort:{col:"pend",dir:1}},loadState());
 
 /* ---------- carga ---------- */
@@ -230,6 +243,8 @@ function pendActas(k){const d=D(k);return (d.total!=null&&d.cont!=null)?d.total-
 function epa(k){let cur=k,g=0;while(cur&&g++<12){const d=D(cur),e=emitOf(cur);if(d.cont>0&&e>0)return e/d.cont;cur=DB.nodes[cur]?DB.nodes[cur].parent:null;}const r=D("__root__");return r.cont>0?emitOf("__root__")/r.cont:0;}
 function shareEmit(k,code){let cur=k,g=0;while(cur&&g++<12){const e=emitOf(cur);if(e>0)return votesOf(cur,code)/e;cur=DB.nodes[cur]?DB.nodes[cur].parent:null;}const e=emitOf("__root__");return e>0?votesOf("__root__",code)/e:0;}
 function pendVotes(k){return pendActas(k)*epa(k);}
+function obsActasOf(k){const d=D(k);return d.enviadasJee||0;}
+function obsVotesOf(k){return obsActasOf(k)*epa(k);}
 function leaderOf(k){let best=null,bv=-1;for(const c of DB.cands){const v=votesOf(k,c.code);if(v>bv){bv=v;best=c;}}if(validVotes(k)>0)return best;let bc=null,bs=-1;for(const c of DB.cands){const s=shareEmit(k,c.code);if(s>bs){bs=s;bc=c;}}return bc;}
 function marginPP(k){if(DB.cands.length<2)return null;const ps=DB.cands.map(c=>pctValid(k,c.code)||0).sort((a,b)=>b-a);return ps[0]-ps[1];}
 function candColor(code){const i=DB.cands.findIndex(c=>c.code===code);return i===0?getCss("--c0"):i===1?getCss("--c1"):getCss("--mut");}
@@ -240,13 +255,15 @@ function deptName(k){let cur=k,g=0;while(cur&&g++<12){if(DB.nodes[cur]&&DB.nodes
 /* ---------- estimacion (vista falta) ---------- */
 function emptyAmb(){const o={pv:0,pendActas:0,cont:0,total:0,rem:{},cur:{}};DB.cands.forEach(c=>{o.rem[c.code]=0;o.cur[c.code]=0;});return o;}
 function compute(){
-  const cands=DB.cands;const rem={},cur={};cands.forEach(c=>{rem[c.code]=0;cur[c.code]=votesOf("__root__",c.code);});
+  const cands=DB.cands;const rem={},cur={},remNormal={},remObs={};cands.forEach(c=>{rem[c.code]=0;remNormal[c.code]=0;remObs[c.code]=0;cur[c.code]=votesOf("__root__",c.code);});
   const pvByLeader={};cands.forEach(c=>pvByLeader[c.code]=0);
   const byAmb={1:emptyAmb(),2:emptyAmb()};let pvTotal=0;
   for(const k in DB.nodes){if(DB.nodes[k].nivel!=="distrito")continue;
     const pend=pendActas(k);if(pend<=0)continue;
     const pv=pendVotes(k);pvTotal+=pv;const a=DB.nodes[k].ambito;byAmb[a].pv+=pv;byAmb[a].pendActas+=pend;
-    for(const c of cands){const add=pv*shareEmit(k,c.code);rem[c.code]+=add;byAmb[a].rem[c.code]+=add;}
+    const env=D(k).enviadasJee||0;const obsActas=Math.min(env,pend);const fracObs=pend>0?obsActas/pend:0;
+    const pvObs=pv*fracObs,pvNorm=pv-pvObs;
+    for(const c of cands){const sh=shareEmit(k,c.code);const add=pv*sh;rem[c.code]+=add;byAmb[a].rem[c.code]+=add;remObs[c.code]+=pvObs*sh;remNormal[c.code]+=pvNorm*sh;}
     const ld=leaderOf(k);if(ld)pvByLeader[ld.code]+=pv;}
   [1,2].forEach(a=>{for(const k in DB.nodes){const n=DB.nodes[k];if(n.nivel==="departamento"&&n.ambito===a){
     byAmb[a].cont+=(D(k).cont||0);byAmb[a].total+=(D(k).total||0);cands.forEach(c=>byAmb[a].cur[c.code]+=votesOf(k,c.code));}}});
@@ -256,7 +273,7 @@ function compute(){
   const saldo=(leader&&trailing)?rem[trailing.code]-rem[leader.code]:0;const r=D("__root__");
   return {pvTotal,pendActas:pendActas("__root__"),contActas:r.cont,totalActas:r.total,emitNac:emitOf("__root__"),avance:avOf("__root__"),
     jeeEnv:r.enviadasJee,jeePend:r.pendientesJee,
-    rem,cur,leader,trailing,ventaja,saldo,enJuego:saldo>ventaja,pvByLeader,byAmb};
+    rem,remNormal,remObs,cur,leader,trailing,ventaja,saldo,enJuego:saldo>ventaja,pvByLeader,byAmb};
 }
 
 /* ===================== RENDER: VISTA FALTA ===================== */
@@ -357,19 +374,23 @@ const DEPT_ORDER=["TUMBES","PIURA","LAMBAYEQUE","CAJAMARCA","AMAZONAS","LORETO",
 function topKeys(ambito){const out=[];for(const k in DB.nodes){const n=DB.nodes[k];if(n.nivel==="departamento"&&n.ambito===ambito)out.push(k);}
   if(ambito===1)out.sort((a,b)=>{const ia=DEPT_ORDER.indexOf(norm(DB.nodes[a].nombre)),ib=DEPT_ORDER.indexOf(norm(DB.nodes[b].nombre));return (ia<0?99:ia)-(ib<0?99:ib);});return out;}
 function lerpColor(hex,t){const c=hex.replace("#","");const r=parseInt(c.slice(0,2),16),g=parseInt(c.slice(2,4),16),b=parseInt(c.slice(4,6),16);const m=x=>Math.round(255-(255-x)*Math.max(.12,Math.min(1,t)));return `rgb(${m(r)},${m(g)},${m(b)})`;}
+let OBSMAX=1;
 function tileColor(k){const mm=state.mapMode;
   if(mm==="ganador"){const ld=leaderOf(k);return ld?lerpColor(candColor(ld.code),.62):"#fff";}
   if(mm==="margen"){const ld=leaderOf(k);const mg=marginPP(k)||0;return ld?lerpColor(candColor(ld.code),Math.min(1,mg/30)):"#fff";}
   if(mm==="avance"){return lerpColor(getCss("--accent"),(avOf(k)||0)/100);}
+  if(mm==="observadas"){return lerpColor(getCss("--hot"),OBSMAX>0?obsActasOf(k)/OBSMAX:0);}
   return lerpColor(getCss("--c0"),(D(k).part||0)/100);}
 function tileValue(k){const mm=state.mapMode;
   if(mm==="avance")return (avOf(k)!=null?avOf(k).toFixed(1):"—")+"%";
   if(mm==="part")return (D(k).part!=null?D(k).part.toFixed(1):"—")+"%";
   if(mm==="margen")return marginPP(k)!=null?marginPP(k).toFixed(1)+"pp":"—";
+  if(mm==="observadas")return fmt(obsActasOf(k));
   const ld=leaderOf(k);return ld?(pctValid(k,ld.code)||0).toFixed(2):"—";}
 function renderMap(){
   document.querySelectorAll("[data-mm]").forEach(b=>b.classList.toggle("on",b.dataset.mm===state.mapMode));
   const map=document.getElementById("map");map.innerHTML="";
+  if(state.mapMode==="observadas")OBSMAX=Math.max(1,...topKeys(1).concat(topKeys(2)).map(obsActasOf));
   const mk=(k,ext)=>{const n=DB.nodes[k];const t=document.createElement("div");t.className="tile"+(ext?" ext":"");t.style.background=tileColor(k);
     t.innerHTML=`<div class="tn lc" title="${n.nombre}">${n.nombre.toLowerCase()}</div><div class="tv">${tileValue(k)}</div>`;
     t.onclick=()=>{state.node=k;saveState();renderBrowser();renderDetail();};return t;};
@@ -378,6 +399,7 @@ function renderMap(){
   if(state.mapMode==="ganador"||state.mapMode==="margen")
     lg.innerHTML=DB.cands.map(c=>`<span><span class="swatch" style="background:${candColor(c.code)}"></span>${candShort(c).toLowerCase()}</span>`).join("")+`<span class="faint">punteado = extranjero</span>`;
   else if(state.mapMode==="avance")lg.innerHTML=`<span><span class="swatch" style="background:${lerpColor(getCss('--accent'),1)}"></span>mas actas contabilizadas</span>`;
+  else if(state.mapMode==="observadas")lg.innerHTML=`<span><span class="swatch" style="background:${lerpColor(getCss('--hot'),1)}"></span>mas actas observadas enviadas al jee</span>`;
   else lg.innerHTML=`<span><span class="swatch" style="background:${lerpColor(getCss('--c0'),1)}"></span>mayor participacion</span>`;
 }
 function renderCrumb(){
@@ -449,46 +471,106 @@ function renderEscenarios(){
   const X=cands.find(c=>c.code===state.scenCand);
   let O=null,ov=-Infinity;for(const c of cands){if(c.code===X.code)continue;if(EST.cur[c.code]>ov){ov=EST.cur[c.code];O=c;}}
   const curX=EST.cur[X.code],curO=EST.cur[O.code];
-  const Rvalid=cands.reduce((s,c)=>s+EST.rem[c.code],0);
-  const needs=Rvalid>0?0.5+(curO-curX)/(2*Rvalid):Infinity;     // fraccion de lo que falta que X necesita para ganar
-  const localShare=Rvalid>0?EST.rem[X.code]/Rvalid:0;
-  const natShare=(curX+curO)>0?curX/(curX+curO):0;
+  const normX=EST.remNormal[X.code]||0,normO=EST.remNormal[O.code]||0;
+  const obsX=EST.remObs[X.code]||0,obsO=EST.remObs[O.code]||0;
+  const normalValid=cands.reduce((s,c)=>s+(EST.remNormal[c.code]||0),0);
+  const obsValid=cands.reduce((s,c)=>s+(EST.remObs[c.code]||0),0);
+  const afterNX=curX+normX,afterNO=curO+normO;                          // tras conteo normal (tendencia local)
+  const gNeed=obsValid>0?0.5+(afterNO-afterNX)/(2*obsValid):Infinity;   // % del bloque observado que X necesita
+  const obsLocalX=obsValid>0?obsX/obsValid:0;
   const sX=candShort(X).toLowerCase(),sO=candShort(O).toLowerCase();
   wrapU.innerHTML=`<div class="tabs" id="scenCandTabs"></div><div id="umbralBody"></div>`;
   const tabsEl=document.getElementById("scenCandTabs");
-  cands.forEach(c=>{const b=document.createElement("button");b.className="lc"+(c.code===state.scenCand?" on":"");b.textContent="¿que necesita "+candShort(c).toLowerCase()+"?";
-    b.onclick=()=>{state.scenCand=c.code;saveState();renderEscenarios();};tabsEl.appendChild(b);});
+  cands.forEach(c=>{const b=document.createElement("button");b.className="lc"+(c.code===state.scenCand?" on":"");b.textContent="¿que necesita "+candShort(c).toLowerCase()+"?";b.onclick=()=>{state.scenCand=c.code;saveState();renderEscenarios();};tabsEl.appendChild(b);});
   let head,detail;
-  if(needs<=0){head=`${sX} ya gana con lo ya contado`;detail=`su ventaja actual supera a todos los votos que faltan, asi que el resto no la cambia.`;}
-  else if(needs>1){head=`${sX} no puede dar vuelta`;detail=`ni llevandose el 100% de los votos validos que faltan alcanza para superar a ${sO}.`;}
-  else{const va=localShare>=needs;head=`${sX} necesita mas del ${(needs*100).toFixed(1)}% de lo que falta`;
-    detail=`faltan ~<b class="num">${fmt(Rvalid)}</b> votos validos. ${sX} viene sacando el <b class="num">${(natShare*100).toFixed(1)}%</b> de lo ya contado, y por la tendencia de las zonas pendientes se estima que se llevaria el <b class="num">${(localShare*100).toFixed(1)}%</b> de lo que falta. ${va?`ese ${(localShare*100).toFixed(1)}% supera el umbral, asi que bajo ese supuesto ${sX} gana.`:`ese ${(localShare*100).toFixed(1)}% no llega al umbral de ${(needs*100).toFixed(1)}%, asi que por tendencia local no le alcanza.`}`;}
-  document.getElementById("umbralBody").innerHTML=`<div class="verdict ${(needs>0&&needs<=1&&localShare>=needs)?'hot':''}"><div class="h lc">${head}</div><div class="d lc">${detail}</div></div>`;
-  document.getElementById("escNota").textContent="que otras fuentes anticipen otra ganadora suele venir de suponer que lo que falta se inclina mas fuerte que lo ya contado (zonas rurales, extranjero). este tablero no asigna probabilidades: el simulador de abajo te deja ver que reparto haria falta. ojo: ~"+fmt(EST.jeeEnv||0)+" de lo pendiente son actas observadas que resuelve el jurado.";
-  const esc=[["tendencia local (estimado)",localShare],["como el total ya contado",natShare],["reparto parejo 50/50",0.5],["umbral para que gane "+sX,Math.min(1,Math.max(0,needs))]];
-  scenT.querySelector("thead").innerHTML=`<tr><th>supuesto</th><th>% para ${sX}</th><th>${sX} final</th><th>${sO} final</th><th>margen final</th><th>gana</th></tr>`;
+  if(obsValid<=0){const winN=afterNX>=afterNO;
+    head=winN?`${sX} arriba en el conteo proyectado`:`${sX} queda abajo en el conteo proyectado`;
+    detail=`este snapshot no trae datos de actas observadas (jee), asi que no puedo separar el bloque del jurado. corre el crawler actualizado para habilitarlo. por ahora, proyectando lo que falta por tendencia local, ${sX} queda ${winN?"arriba":"abajo"} por ~<b class="num">${fmt(Math.abs(afterNX-afterNO))}</b> votos.`;}
+  else if(gNeed<=0){head=`${sX} gana aun perdiendo todas las observadas`;detail=`con lo ya contado mas las pendientes de conteo normal repartidas como su zona, ${sX} queda arriba aunque los ~${fmt(obsValid)} votos en actas observadas se vayan enteros a ${sO}.`;}
+  else if(gNeed>1){head=`${sX} no alcanza ni con todas las observadas`;detail=`aun llevandose el 100% de los ~${fmt(obsValid)} votos en actas observadas, no supera a ${sO}.`;}
+  else{const va=obsLocalX>=gNeed;head=`${sX} necesita mas del ${(gNeed*100).toFixed(1)}% de las actas observadas`;
+    detail=`asumiendo que las pendientes de conteo normal (~<b class="num">${fmt(normalValid)}</b> votos) se reparten como su zona, tras contarlas ${sX} quedaria ${afterNX>=afterNO?"arriba":"abajo"} por ~<b class="num">${fmt(Math.abs(afterNX-afterNO))}</b>. el desenlace lo decide entonces el bloque observado del jee (~<b class="num">${fmt(obsValid)}</b> votos): ${sX} necesita mas del <b class="num">${(gNeed*100).toFixed(1)}%</b> de el. hoy esas zonas observadas se inclinan <b class="num">${(obsLocalX*100).toFixed(1)}%</b> a ${sX}, asi que ${va?`por esa tendencia va encaminado.`:`por esa tendencia no le alcanza.`}`;}
+  document.getElementById("umbralBody").innerHTML=`<div class="verdict ${(obsValid>0&&gNeed>0&&gNeed<=1&&obsLocalX>=gNeed)?'hot':''}"><div class="h lc">${head}</div><div class="d lc">${detail}</div></div>
+    <div class="row" style="gap:22px;margin-top:10px;flex-wrap:wrap">
+      <span class="lc"><span class="faint">pendientes (conteo normal)</span><br><b class="num">~${fmt(normalValid)}</b> votos · ${sX} ${(normalValid>0?normX/normalValid*100:0).toFixed(1)}% / ${sO} ${(normalValid>0?normO/normalValid*100:0).toFixed(1)}%</span>
+      <span class="lc"><span class="faint">observadas en el jee (comodin)</span><br><b class="num">~${fmt(obsValid)}</b> votos · ${sX} ${(obsValid>0?obsLocalX*100:0).toFixed(1)}% / ${sO} ${(obsValid>0?obsO/obsValid*100:0).toFixed(1)}%</span></div>`;
+  document.getElementById("escNota").textContent="las pendientes de conteo normal las proyecto por tendencia local. las observadas del jee las dejo como comodin: la tabla y los controles de abajo muestran que pasa segun como se resuelvan o si se anula parte. ONPE no publica como fallara el jurado, asi que esto no predice nada, solo acota el rango.";
+  function outcome(g,annul){const obsEff=obsValid*(1-annul);const fX=afterNX+g*obsEff,fO=afterNO+(1-g)*obsEff;const tot=fX+fO||1;return {fX,fO,tot,win:fX>=fO?sX:sO,mg:Math.abs(fX-fO)};}
+  const esc=[["observadas como su zona",obsLocalX,0],["observadas todas para "+sX,1,0],["observadas todas para "+sO,0,0],["30% de observadas anuladas, resto como su zona",obsLocalX,0.3]];
+  scenT.querySelector("thead").innerHTML=`<tr><th>escenario del jee</th><th>${sX} final</th><th>${sO} final</th><th>margen final</th><th>gana</th></tr>`;
   const tb=scenT.querySelector("tbody");tb.innerHTML="";
-  esc.forEach(([lbl,f])=>{const fX=curX+f*Rvalid,fO=curO+(1-f)*Rvalid,tot=fX+fO||1;const win=fX>=fO?sX:sO;const mg=Math.abs(fX-fO);
-    tb.insertAdjacentHTML("beforeend",`<tr><td class="lc">${lbl}</td><td>${(f*100).toFixed(1)}%</td><td style="color:${candColor(X.code)}">${(fX/tot*100).toFixed(3)}%</td><td style="color:${candColor(O.code)}">${(fO/tot*100).toFixed(3)}%</td><td>${fmt(mg)}</td><td><span class="lead-pill lc" style="color:${win===sX?candColor(X.code):candColor(O.code)}">${win}</span></td></tr>`);});
-  const def=Math.min(100,Math.max(0,localShare*100));
-  sim.innerHTML=`<div class="lc mut" style="margin-bottom:8px">% de los votos validos que faltan que se lleva ${sX}:</div>
-    <input type="range" id="scenSlider" min="0" max="100" step="0.1" value="${def.toFixed(1)}">
-    <div class="row" style="justify-content:space-between;font-size:11px;color:var(--faint)"><span>0%</span><span id="scenSliderVal" class="num" style="color:var(--ink);font-size:15px">${def.toFixed(1)}%</span><span>100%</span></div>
+  esc.forEach(([lbl,g,an])=>{const o=outcome(g,an);
+    tb.insertAdjacentHTML("beforeend",`<tr><td class="lc">${lbl}</td><td style="color:${candColor(X.code)}">${(o.fX/o.tot*100).toFixed(3)}%</td><td style="color:${candColor(O.code)}">${(o.fO/o.tot*100).toFixed(3)}%</td><td>${fmt(o.mg)}</td><td><span class="lead-pill lc" style="color:${o.win===sX?candColor(X.code):candColor(O.code)}">${o.win}</span></td></tr>`);});
+  const defG=Math.min(100,Math.max(0,obsLocalX*100));
+  sim.innerHTML=`<div class="lc mut" style="margin-bottom:6px">las pendientes de conteo normal van por tendencia local (fijas). vos moves el bloque observado del jee:</div>
+    <div class="lc" style="margin-top:8px">% de las observadas que se lleva ${sX}: <span id="g1v" class="num" style="color:var(--ink)">${defG.toFixed(1)}%</span></div>
+    <input type="range" id="g1" min="0" max="100" step="0.1" value="${defG.toFixed(1)}">
+    <div class="lc" style="margin-top:8px">% de las observadas que se anulan: <span id="g2v" class="num" style="color:var(--ink)">0%</span></div>
+    <input type="range" id="g2" min="0" max="100" step="1" value="0">
     <div id="scenOut" style="margin-top:12px"></div>
-    <div class="note lc">referencias para ${sX}: ya contado ${(natShare*100).toFixed(1)}% · tendencia local ${(localShare*100).toFixed(1)}% · umbral para ganar ${needs>1?">100%":needs<=0?"ya gana":(needs*100).toFixed(1)+"%"}</div>`;
-  const slider=document.getElementById("scenSlider"),out=document.getElementById("scenOut"),valEl=document.getElementById("scenSliderVal");
-  function upd(){const f=(+slider.value)/100;valEl.textContent=(+slider.value).toFixed(1)+"%";
-    const fX=curX+f*Rvalid,fO=curO+(1-f)*Rvalid,tot=fX+fO||1;const win=fX>=fO?X:O;const mg=Math.abs(fX-fO);
-    out.innerHTML=`<div class="cand-line"><span class="swatch" style="background:${candColor(X.code)}"></span><span class="cand-name lc">${sX}</span><span class="bar"><span style="width:${(fX/tot*100).toFixed(2)}%;background:${candColor(X.code)}"></span></span><span class="cand-pct">${(fX/tot*100).toFixed(3)}%</span></div>
-      <div class="cand-line"><span class="swatch" style="background:${candColor(O.code)}"></span><span class="cand-name lc">${sO}</span><span class="bar"><span style="width:${(fO/tot*100).toFixed(2)}%;background:${candColor(O.code)}"></span></span><span class="cand-pct">${(fO/tot*100).toFixed(3)}%</span></div>
-      <div class="lc" style="margin-top:8px">resultado: gana <b style="color:${win===X?candColor(X.code):candColor(O.code)}">${candShort(win).toLowerCase()}</b> por <b class="num">${fmt(mg)}</b> votos</div>`;}
-  slider.oninput=upd;upd();
+    <div class="note lc">si el snapshot no trae datos de observadas, este bloque sale en cero: corre el crawler actualizado.</div>`;
+  const g1=document.getElementById("g1"),g2=document.getElementById("g2"),g1v=document.getElementById("g1v"),g2v=document.getElementById("g2v"),out=document.getElementById("scenOut");
+  function upd(){const g=(+g1.value)/100,an=(+g2.value)/100;g1v.textContent=(+g1.value).toFixed(1)+"%";g2v.textContent=(+g2.value).toFixed(0)+"%";const o=outcome(g,an);
+    out.innerHTML=`<div class="cand-line"><span class="swatch" style="background:${candColor(X.code)}"></span><span class="cand-name lc">${sX}</span><span class="bar"><span style="width:${(o.fX/o.tot*100).toFixed(2)}%;background:${candColor(X.code)}"></span></span><span class="cand-pct">${(o.fX/o.tot*100).toFixed(3)}%</span></div>
+      <div class="cand-line"><span class="swatch" style="background:${candColor(O.code)}"></span><span class="cand-name lc">${sO}</span><span class="bar"><span style="width:${(o.fO/o.tot*100).toFixed(2)}%;background:${candColor(O.code)}"></span></span><span class="cand-pct">${(o.fO/o.tot*100).toFixed(3)}%</span></div>
+      <div class="lc" style="margin-top:8px">resultado: gana <b style="color:${o.win===sX?candColor(X.code):candColor(O.code)}">${o.win}</b> por <b class="num">${fmt(o.mg)}</b> votos</div>`;}
+  g1.oninput=upd;g2.oninput=upd;upd();
+}
+
+function renderObservadas(){
+  const cands=DB.cands;
+  // resumen nacional
+  const totObs=EST.jeeEnv!=null?EST.jeeEnv:0;
+  const obsValid=cands.reduce((s,c)=>s+(EST.remObs[c.code]||0),0);
+  let nNodos=0;for(const k in DB.nodes){if(DB.nodes[k].nivel==="distrito"&&obsActasOf(k)>0)nNodos++;}
+  // peru vs extranjero
+  let obsPe=0,obsEx=0;for(const k in DB.nodes){const n=DB.nodes[k];if(n.nivel==="departamento"){if(n.ambito===1)obsPe+=obsActasOf(k);else obsEx+=obsActasOf(k);}}
+  const res=document.getElementById("obsResumen");
+  if(totObs<=0){res.innerHTML=`<div class="verdict"><div class="h lc">este snapshot no trae datos de actas observadas</div><div class="d lc">corre el crawler actualizado (guarda enviadasJee / pendientesJee por nodo) y volve a cargar el json para ver el mapeo.</div></div>`;
+    document.getElementById("obsLvlTabs").innerHTML="";document.getElementById("obsAmbTabs").innerHTML="";document.querySelector("#obsTbl thead").innerHTML="";document.querySelector("#obsTbl tbody").innerHTML="";return;}
+  // hacia quien se inclinan (neto por tendencia local)
+  const sortedObs=cands.map(c=>({c,v:EST.remObs[c.code]||0})).sort((a,b)=>b.v-a.v);
+  const lean=sortedObs[0],lean2=sortedObs[1];
+  res.innerHTML=`<div class="row" style="gap:26px;flex-wrap:wrap">
+    <span class="lc"><span class="faint">actas observadas (enviadas al jee)</span><br><b class="num" style="font-size:20px">${fmt(totObs)}</b></span>
+    <span class="lc"><span class="faint">votos en juego (est)</span><br><b class="num" style="font-size:20px">~${fmt(obsValid)}</b></span>
+    <span class="lc"><span class="faint">distritos con observadas</span><br><b class="num" style="font-size:20px">${fmt(nNodos)}</b></span>
+    <span class="lc"><span class="faint">peru / extranjero</span><br><b class="num">${fmt(obsPe)}</b> / <b class="num">${fmt(obsEx)}</b></span>
+    ${lean&&lean2?`<span class="lc"><span class="faint">por tendencia local se inclinan a</span><br><span class="swatch" style="background:${candColor(lean.c.code)}"></span> <b>${candShort(lean.c).toLowerCase()}</b> por ~<b class="num">${fmt(lean.v-lean2.v)}</b> votos</span>`:``}</div>`;
+  // toggles
+  const lvls=[["distrito","distritos"],["provincia","provincias / paises"],["departamento","regiones / continentes"]];
+  const lt=document.getElementById("obsLvlTabs");lt.innerHTML="";
+  lvls.forEach(([lv,lbl])=>{const b=document.createElement("button");b.className="lc"+(state.obsLvl===lv?" on":"");b.textContent=lbl;b.onclick=()=>{state.obsLvl=lv;saveState();renderObservadas();};lt.appendChild(b);});
+  const ambs=[["todos","peru + extranjero"],["1","solo peru"],["2","solo extranjero"]];
+  const at=document.getElementById("obsAmbTabs");at.innerHTML="";
+  ambs.forEach(([a,lbl])=>{const b=document.createElement("button");b.className="lc"+(state.obsAmb===a?" on":"");b.textContent=lbl;b.onclick=()=>{state.obsAmb=a;saveState();renderObservadas();};at.appendChild(b);});
+  // filas
+  let keys=Object.keys(DB.nodes).filter(k=>DB.nodes[k].nivel===state.obsLvl);
+  if(state.obsAmb!=="todos")keys=keys.filter(k=>String(DB.nodes[k].ambito)===state.obsAmb);
+  let rows=keys.map(k=>({k,nombre:DB.nodes[k].nombre,region:deptName(k),obs:obsActasOf(k),ov:obsVotesOf(k),
+    share:totObs>0?obsActasOf(k)/totObs*100:0,mg:marginPP(k),av:avOf(k),ld:leaderOf(k),
+    pa:pctValid(k,cands[0]&&cands[0].code),pb:pctValid(k,cands[1]&&cands[1].code)})).filter(r=>r.obs>0);
+  const sc=state.obsSort||{col:"obs",dir:-1};
+  rows.sort((x,y)=>{if(sc.col==="name"||sc.col==="region"){const a=norm(x[sc.col==="name"?"nombre":"region"]),b=norm(y[sc.col==="name"?"nombre":"region"]);return a<b?-sc.dir:a>b?sc.dir:0;}
+    const a=x[sc.col]==null?-Infinity:x[sc.col],b=y[sc.col]==null?-Infinity:y[sc.col];return (a-b)*sc.dir;});
+  const shown=rows.slice(0,100);
+  const cols=[["name","zona"],["region","region"],["obs","observadas"],["share","% del total nac."],["ov","votos obs. (est)"],["pa",(cands[0]?candShort(cands[0]):"a").toLowerCase()+"%"],["pb",(cands[1]?candShort(cands[1]):"b").toLowerCase()+"%"],["av","avance"]];
+  const thead=document.querySelector("#obsTbl thead");
+  thead.innerHTML="<tr>"+cols.map(([c,l])=>`<th data-c="${c}" class="${sc.col===c?'sorted':''}">${l}${sc.col===c?(sc.dir>0?" ↑":" ↓"):""}</th>`).join("")+"</tr>";
+  thead.querySelectorAll("th").forEach(th=>th.onclick=()=>{const c=th.dataset.c;if(sc.col===c)state.obsSort={col:c,dir:-sc.dir};else state.obsSort={col:c,dir:(c==="name"||c==="region")?1:-1};saveState();renderObservadas();});
+  const tb=document.querySelector("#obsTbl tbody");tb.innerHTML="";
+  shown.forEach(r=>{tb.insertAdjacentHTML("beforeend",`<tr><td class="name lc" title="${r.nombre}">${r.nombre.toLowerCase()}</td><td class="lc mut">${(r.region||"").toLowerCase()}</td>
+    <td>${fmt(r.obs)}</td><td>${r.share.toFixed(2)}%</td><td>~${fmt(r.ov)}</td>
+    <td style="color:${cands[0]?candColor(cands[0].code):''}">${r.pa!=null?r.pa.toFixed(3):"—"}</td>
+    <td style="color:${cands[1]?candColor(cands[1].code):''}">${r.pb!=null?r.pb.toFixed(3):"—"}</td>
+    <td>${r.av!=null?r.av.toFixed(2):"—"}%</td></tr>`);});
+  if(!shown.length)tb.innerHTML=`<tr><td colspan="8" class="lc faint">no hay actas observadas en este filtro</td></tr>`;
 }
 
 /* ===================== ORQUESTACION ===================== */
 function renderTabs(){
   const t=document.getElementById("mainTabs");t.innerHTML="";
-  [["falta","lo que falta"],["explora","explorador"],["escenarios","escenarios"]].forEach(([v,lbl])=>{const b=document.createElement("button");b.className="lc"+(state.view===v?" on":"");b.textContent=lbl;
+  [["falta","lo que falta"],["explora","explorador"],["escenarios","escenarios"],["observadas","observadas (jee)"]].forEach(([v,lbl])=>{const b=document.createElement("button");b.className="lc"+(state.view===v?" on":"");b.textContent=lbl;
     b.onclick=()=>{state.view=v;saveState();renderView();};t.appendChild(b);});
 }
 function renderView(){
@@ -496,7 +578,8 @@ function renderView(){
   document.getElementById("viewFalta").classList.toggle("hidden",state.view!=="falta");
   document.getElementById("viewExplora").classList.toggle("hidden",state.view!=="explora");
   document.getElementById("viewEscenarios").classList.toggle("hidden",state.view!=="escenarios");
-  if(state.view==="falta")renderFalta();else if(state.view==="explora")renderExplora();else renderEscenarios();
+  document.getElementById("viewObservadas").classList.toggle("hidden",state.view!=="observadas");
+  if(state.view==="falta")renderFalta();else if(state.view==="explora")renderExplora();else if(state.view==="escenarios")renderEscenarios();else renderObservadas();
 }
 function renderSnapSel(){
   const sel=document.getElementById("snapSel");sel.classList.remove("hidden");sel.innerHTML="";
