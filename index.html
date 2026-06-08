@@ -255,6 +255,7 @@ function compute(){
   const ventaja=(leader&&trailing)?cur[leader.code]-cur[trailing.code]:0;
   const saldo=(leader&&trailing)?rem[trailing.code]-rem[leader.code]:0;const r=D("__root__");
   return {pvTotal,pendActas:pendActas("__root__"),contActas:r.cont,totalActas:r.total,emitNac:emitOf("__root__"),avance:avOf("__root__"),
+    jeeEnv:r.enviadasJee,jeePend:r.pendientesJee,
     rem,cur,leader,trailing,ventaja,saldo,enJuego:saldo>ventaja,pvByLeader,byAmb};
 }
 
@@ -271,8 +272,11 @@ function renderFaltaSummary(){
       <span class="cand-name lc">${(c.cand||c.agr).toLowerCase()}</span>
       <span class="bar"><span style="width:${p.toFixed(2)}%;background:${col}"></span></span>
       <span class="cand-pct">${pct3(p)}</span><span class="cand-votes">${fmt(v)}</span></div>`);});
-  if(EST.leader&&EST.trailing)document.getElementById("natMargin").textContent=
-    `lidera ${candShort(EST.leader).toLowerCase()} por ${fmt(EST.ventaja)} votos (${(EST.ventaja/valid*100).toFixed(3)} pp)`;
+  const nm=document.getElementById("natMargin");let nmHtml="";
+  if(EST.leader&&EST.trailing)nmHtml=`lidera ${candShort(EST.leader).toLowerCase()} por ${fmt(EST.ventaja)} votos (${(EST.ventaja/valid*100).toFixed(3)} pp)`;
+  if(EST.jeeEnv!=null||EST.jeePend!=null){const env=EST.jeeEnv||0,pen=EST.jeePend||0;
+    nmHtml+=`<br>de las ${fmt(EST.pendActas)} actas pendientes, ${fmt(env)} estan enviadas al jee y ${fmt(pen)} pendientes en el jee: son actas observadas, en manos del jurado.`;}
+  nm.innerHTML=nmHtml;
 }
 function renderVerdict(){
   const v=document.getElementById("verdict");if(!EST.leader||!EST.trailing){v.innerHTML="";return;}
@@ -296,7 +300,12 @@ function renderRem(){
   const t=document.getElementById("territorio");const tpv=Object.values(EST.pvByLeader).reduce((a,b)=>a+b,0)||1;
   t.innerHTML=`<div class="lc faint">ubicacion de lo pendiente: en que zonas esta hoy el voto que falta</div>`+
     DB.cands.map(c=>`<span class="lc" style="margin-right:16px">zonas que hoy gana ${candShort(c).toLowerCase()}: <b class="num">${(EST.pvByLeader[c.code]/tpv*100).toFixed(1)}%</b> de lo pendiente</span>`).join("");
-  document.getElementById("metodo").textContent="metodo: votos por contar = actas pendientes x votos por acta ya contada en la misma zona; el reparto sigue el resultado actual local. estimacion descriptiva, no pronostico: las actas tardias (rurales, observadas, extranjero) suelen votar distinto.";
+  let met="metodo: votos por contar = actas pendientes x votos por acta ya contada en la misma zona; el reparto sigue el resultado actual local. estimacion descriptiva, no pronostico.";
+  const jeeTot=(EST.jeeEnv||0)+(EST.jeePend||0);
+  if(jeeTot>0&&EST.pendActas>0&&jeeTot>=EST.pendActas*0.8)
+    met+=" atencion: practicamente todo lo que falta son actas observadas en el jee (enviadas o pendientes en el jurado). esas actas pueden corregirse o anularse y su reparto no tiene por que parecerse al ya contado, asi que la estimacion es especialmente fragil aca: no modela anulaciones ni el criterio del jurado.";
+  else met+=" las actas tardias (rurales, observadas, extranjero) suelen votar distinto.";
+  document.getElementById("metodo").textContent=met;
 }
 function renderAmbitos(){
   const wrap=document.getElementById("ambitos");wrap.innerHTML="";
