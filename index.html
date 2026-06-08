@@ -178,6 +178,19 @@
       </div>
     </div>
 
+    <div id="viewMovimiento" class="hidden">
+      <div class="panel"><h2>de donde vienen los votos (entre snapshots)</h2>
+        <div class="row" style="gap:8px;align-items:center;margin-bottom:10px"><span class="lc faint">comparar el corte actual con:</span><select id="baseSel" class="lc"></select></div>
+        <div id="moveResumen"></div>
+        <div class="note lc">muestra el movimiento marginal: que actas se sumaron desde el corte elegido y a quien favorecio el voto nuevo. los deltas negativos pueden venir de correcciones o de actas anuladas por el jurado.</div></div>
+      <div class="panel">
+        <div class="tabs" id="moveLvlTabs"></div>
+        <div class="tabs" id="moveAmbTabs"></div>
+        <div class="tablewrap"><table id="moveTbl"><thead></thead><tbody></tbody></table></div>
+        <div class="note lc">click en cualquier encabezado para ordenar · "actas nuevas" y "Δ votos" son lo sumado desde el corte de comparacion · "% nuevo" es como se repartio ESE voto nuevo, no el acumulado</div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -202,6 +215,7 @@ function getCss(v){return getComputedStyle(document.documentElement).getProperty
 let SNAPS=null,DB=null,EST=null;
 let state=Object.assign({view:"falta",snapIdx:-1,lvl:"distrito",amb:"todos",scenCand:null,pendSort:{col:"pend",dir:-1},
   obsLvl:"distrito",obsAmb:"todos",obsSort:{col:"obs",dir:-1},
+  baseIdx:null,moveLvl:"distrito",moveAmb:"todos",moveSort:{col:"dv",dir:-1},
   node:"__root__",mapMode:"ganador",browseSort:{col:"pend",dir:1}},loadState());
 
 /* ---------- carga ---------- */
@@ -567,10 +581,66 @@ function renderObservadas(){
   if(!shown.length)tb.innerHTML=`<tr><td colspan="8" class="lc faint">no hay actas observadas en este filtro</td></tr>`;
 }
 
+function renderMovimiento(){
+  const cands=DB.cands;
+  const res=document.getElementById("moveResumen");const sel=document.getElementById("baseSel");
+  const clearTbl=()=>{document.getElementById("moveLvlTabs").innerHTML="";document.getElementById("moveAmbTabs").innerHTML="";document.querySelector("#moveTbl thead").innerHTML="";document.querySelector("#moveTbl tbody").innerHTML="";};
+  if(SNAPS.length<2){res.innerHTML=`<div class="verdict"><div class="h lc">necesitas al menos dos snapshots</div><div class="d lc">carga (o crawlea) un segundo corte para ver de donde vienen los votos nuevos entre uno y otro.</div></div>`;sel.innerHTML="";clearTbl();return;}
+  const cur=state.snapIdx;
+  if(state.baseIdx==null||state.baseIdx===cur||state.baseIdx>=SNAPS.length){
+    let b=-1;for(let j=0;j<SNAPS.length;j++){if(j!==cur&&new Date(SNAPS[j].ts)<new Date(SNAPS[cur].ts)){if(b<0||new Date(SNAPS[j].ts)>new Date(SNAPS[b].ts))b=j;}}
+    if(b<0)for(let j=0;j<SNAPS.length;j++){if(j!==cur){b=j;break;}}
+    state.baseIdx=b;}
+  const base=state.baseIdx;
+  sel.innerHTML="";SNAPS.forEach((s,i)=>{if(i===cur)return;const o=document.createElement("option");o.value=i;o.textContent=`${s.label} · ${s.avance!=null?s.avance.toFixed(2)+"%":"—"}`;sel.appendChild(o);});
+  sel.value=base;sel.onchange=()=>{state.baseIdx=+sel.value;saveState();renderMovimiento();};
+  const PD=k=>(SNAPS[base].data[k]||{}),CD=k=>(SNAPS[cur].data[k]||{});
+  const pv=(d,code)=>(d.votes&&d.votes[code])||0;
+  const pr=PD("__root__"),cu=CD("__root__");
+  const dCont=(cu.cont||0)-(pr.cont||0);
+  const dv={};let dvalid=0;cands.forEach(c=>{dv[c.code]=pv(cu,c.code)-pv(pr,c.code);dvalid+=dv[c.code];});
+  const A=cands[0],B=cands[1];
+  const mgNow=A&&B?pv(cu,A.code)-pv(cu,B.code):0,mgPrev=A&&B?pv(pr,A.code)-pv(pr,B.code):0;const dMg=mgNow-mgPrev;
+  const hrs=(new Date(SNAPS[cur].ts)-new Date(SNAPS[base].ts))/3.6e6;
+  res.innerHTML=`<div class="row" style="gap:26px;flex-wrap:wrap">
+    <span class="lc"><span class="faint">actas nuevas contabilizadas</span><br><b class="num" style="font-size:20px">${dCont>=0?"+":""}${fmt(dCont)}</b>${hrs>0.05?` <span class="faint">~${fmt(Math.round(dCont/hrs))}/h</span>`:""}</span>
+    <span class="lc"><span class="faint">votos validos nuevos</span><br><b class="num" style="font-size:20px">${dvalid>=0?"+":""}${fmt(dvalid)}</b></span>
+    ${cands.length>=2?`<span class="lc"><span class="faint">reparto del voto nuevo</span><br>${cands.map(c=>`<span class="swatch" style="background:${candColor(c.code)}"></span> ${candShort(c).toLowerCase()} <b class="num">${dvalid>0?(dv[c.code]/dvalid*100).toFixed(1)+"%":"—"}</b>`).join(" · ")}</span>`:""}
+    ${A&&B?`<span class="lc"><span class="faint">margen ${candShort(A).toLowerCase()} - ${candShort(B).toLowerCase()}</span><br>de <b class="num">${fmt(mgPrev)}</b> a <b class="num">${fmt(mgNow)}</b> · <b class="num" style="color:${dMg>=0?candColor(A.code):candColor(B.code)}">${dMg>=0?"+":""}${fmt(dMg)}</b> ${dMg>=0?"para "+candShort(A).toLowerCase():"para "+candShort(B).toLowerCase()}</span>`:""}</div>`;
+  // tabla por zona
+  const lvls=[["distrito","distritos"],["provincia","provincias / paises"],["departamento","regiones / continentes"]];
+  const lt=document.getElementById("moveLvlTabs");lt.innerHTML="";
+  lvls.forEach(([lv,lbl])=>{const b=document.createElement("button");b.className="lc"+(state.moveLvl===lv?" on":"");b.textContent=lbl;b.onclick=()=>{state.moveLvl=lv;saveState();renderMovimiento();};lt.appendChild(b);});
+  const ambs=[["todos","peru + extranjero"],["1","solo peru"],["2","solo extranjero"]];
+  const at=document.getElementById("moveAmbTabs");at.innerHTML="";
+  ambs.forEach(([a,lbl])=>{const b=document.createElement("button");b.className="lc"+(state.moveAmb===a?" on":"");b.textContent=lbl;b.onclick=()=>{state.moveAmb=a;saveState();renderMovimiento();};at.appendChild(b);});
+  let keys=Object.keys(DB.nodes).filter(k=>DB.nodes[k].nivel===state.moveLvl);
+  if(state.moveAmb!=="todos")keys=keys.filter(k=>String(DB.nodes[k].ambito)===state.moveAmb);
+  let rows=keys.map(k=>{const p=PD(k),c=CD(k);const dc=(c.cont||0)-(p.cont||0);
+    const da=A?pv(c,A.code)-pv(p,A.code):0,db=B?pv(c,B.code)-pv(p,B.code):0;const dval=da+db;
+    return {k,nombre:DB.nodes[k].nombre,region:deptName(k),dc,dval,pa:dval>0?da/dval*100:null,pb:dval>0?db/dval*100:null,av:avOf(k)};
+  }).filter(r=>r.dc!==0||r.dval!==0);
+  const sc=state.moveSort||{col:"dv",dir:-1};
+  const acc={name:r=>norm(r.nombre),region:r=>norm(r.region),dc:r=>r.dc,dv:r=>r.dval,pa:r=>r.pa,pb:r=>r.pb,av:r=>r.av};
+  rows.sort((x,y)=>{if(sc.col==="name"||sc.col==="region"){const a=acc[sc.col](x),b=acc[sc.col](y);return a<b?-sc.dir:a>b?sc.dir:0;}const a=acc[sc.col](x),b=acc[sc.col](y);return ((a==null?-Infinity:a)-(b==null?-Infinity:b))*sc.dir;});
+  const shown=rows.slice(0,100);
+  const cols=[["name","zona"],["region","region"],["dc","actas nuevas"],["dv","Δ votos"],["pa",(A?candShort(A):"a").toLowerCase()+"% nuevo"],["pb",(B?candShort(B):"b").toLowerCase()+"% nuevo"],["av","avance"]];
+  const thead=document.querySelector("#moveTbl thead");
+  thead.innerHTML="<tr>"+cols.map(([c,l])=>`<th data-c="${c}" class="${sc.col===c?'sorted':''}">${l}${sc.col===c?(sc.dir>0?" ↑":" ↓"):""}</th>`).join("")+"</tr>";
+  thead.querySelectorAll("th").forEach(th=>th.onclick=()=>{const c=th.dataset.c;if(sc.col===c)state.moveSort={col:c,dir:-sc.dir};else state.moveSort={col:c,dir:(c==="name"||c==="region")?1:-1};saveState();renderMovimiento();});
+  const tb=document.querySelector("#moveTbl tbody");tb.innerHTML="";
+  shown.forEach(r=>{tb.insertAdjacentHTML("beforeend",`<tr><td class="name lc" title="${r.nombre}">${r.nombre.toLowerCase()}</td><td class="lc mut">${(r.region||"").toLowerCase()}</td>
+    <td>${r.dc>=0?"+":""}${fmt(r.dc)}</td><td>${r.dval>=0?"+":""}${fmt(r.dval)}</td>
+    <td style="color:${A?candColor(A.code):''}">${r.pa!=null?r.pa.toFixed(1)+"%":"—"}</td>
+    <td style="color:${B?candColor(B.code):''}">${r.pb!=null?r.pb.toFixed(1)+"%":"—"}</td>
+    <td>${r.av!=null?r.av.toFixed(2):"—"}%</td></tr>`);});
+  if(!shown.length)tb.innerHTML=`<tr><td colspan="7" class="lc faint">no hubo movimiento entre estos dos cortes en este filtro</td></tr>`;
+}
+
 /* ===================== ORQUESTACION ===================== */
 function renderTabs(){
   const t=document.getElementById("mainTabs");t.innerHTML="";
-  [["falta","lo que falta"],["explora","explorador"],["escenarios","escenarios"],["observadas","observadas (jee)"]].forEach(([v,lbl])=>{const b=document.createElement("button");b.className="lc"+(state.view===v?" on":"");b.textContent=lbl;
+  [["falta","lo que falta"],["explora","explorador"],["escenarios","escenarios"],["observadas","observadas (jee)"],["movimiento","entre snapshots"]].forEach(([v,lbl])=>{const b=document.createElement("button");b.className="lc"+(state.view===v?" on":"");b.textContent=lbl;
     b.onclick=()=>{state.view=v;saveState();renderView();};t.appendChild(b);});
 }
 function renderView(){
@@ -579,7 +649,8 @@ function renderView(){
   document.getElementById("viewExplora").classList.toggle("hidden",state.view!=="explora");
   document.getElementById("viewEscenarios").classList.toggle("hidden",state.view!=="escenarios");
   document.getElementById("viewObservadas").classList.toggle("hidden",state.view!=="observadas");
-  if(state.view==="falta")renderFalta();else if(state.view==="explora")renderExplora();else if(state.view==="escenarios")renderEscenarios();else renderObservadas();
+  document.getElementById("viewMovimiento").classList.toggle("hidden",state.view!=="movimiento");
+  if(state.view==="falta")renderFalta();else if(state.view==="explora")renderExplora();else if(state.view==="escenarios")renderEscenarios();else if(state.view==="observadas")renderObservadas();else renderMovimiento();
 }
 function renderSnapSel(){
   const sel=document.getElementById("snapSel");sel.classList.remove("hidden");sel.innerHTML="";
