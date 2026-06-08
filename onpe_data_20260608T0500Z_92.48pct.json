@@ -1,0 +1,208 @@
+{
+ "snapshot": {
+  "ts": "2026-06-08T05:00:00+00:00",
+  "label": "08 jun 00:00",
+  "avance": 92.48
+ },
+ "candidatos_master": [
+  {
+   "code": "8",
+   "agr": "FUERZA POPULAR",
+   "cand": "KEIKO SOFIA FUJIMORI HIGUCHI"
+  },
+  {
+   "code": "13",
+   "agr": "JUNTOS POR EL PERU",
+   "cand": "ROBERTO SANCHEZ PALOMINO"
+  },
+  {
+   "code": "B",
+   "agr": "",
+   "cand": "VOTOS EN BLANCO"
+  },
+  {
+   "code": "N",
+   "agr": "",
+   "cand": "VOTOS NULOS"
+  }
+ ],
+ "nodes": {
+  "__root__": {
+   "nombre": "PERÚ",
+   "nivel": "nacional",
+   "parent": null,
+   "children": [
+    "140000",
+    "900000"
+   ]
+  },
+  "140000": {
+   "nombre": "LIMA",
+   "nivel": "departamento",
+   "parent": "__root__",
+   "ubigeo": "140000",
+   "ambito": 1,
+   "children": [
+    "140100"
+   ]
+  },
+  "140100": {
+   "nombre": "LIMA",
+   "nivel": "provincia",
+   "parent": "140000",
+   "ubigeo": "140100",
+   "ambito": 1,
+   "children": [
+    "140101"
+   ]
+  },
+  "140101": {
+   "nombre": "LIMA",
+   "nivel": "distrito",
+   "parent": "140100",
+   "ubigeo": "140101",
+   "ambito": 1,
+   "children": []
+  },
+  "210000": {
+   "nombre": "PUNO",
+   "nivel": "departamento",
+   "parent": "__root__",
+   "ubigeo": "210000",
+   "ambito": 1,
+   "children": []
+  },
+  "900000": {
+   "nombre": "PERUANOS RESIDENTES EN EL EXTRANJERO",
+   "nivel": "ambito",
+   "parent": "__root__",
+   "ambito": 2,
+   "children": [
+    "920000"
+   ]
+  },
+  "920000": {
+   "nombre": "AMÉRICA",
+   "nivel": "departamento",
+   "parent": "900000",
+   "ambito": 2,
+   "children": [
+    "920200"
+   ]
+  },
+  "920200": {
+   "nombre": "ARGENTINA",
+   "nivel": "provincia",
+   "parent": "920000",
+   "ambito": 2,
+   "children": [
+    "920202"
+   ]
+  },
+  "920202": {
+   "nombre": "BUENOS AIRES",
+   "nivel": "distrito",
+   "parent": "920200",
+   "ambito": 2,
+   "children": []
+  }
+ },
+ "data": {
+  "__root__": {
+   "av": 92.48,
+   "part": 65.1,
+   "cont": 85789,
+   "total": 92766,
+   "votes": {
+    "8": 8740000,
+    "13": 8680000,
+    "B": 50000,
+    "N": 120000
+   }
+  },
+  "140000": {
+   "av": 94.48,
+   "part": 70.0,
+   "cont": 27632,
+   "total": 29247,
+   "votes": {
+    "8": 2622000,
+    "13": 2430400,
+    "B": 9000,
+    "N": 24000
+   }
+  },
+  "140100": {
+   "av": 94.48,
+   "part": 70.0,
+   "cont": 9000,
+   "total": 9300,
+   "votes": {
+    "8": 1922800,
+    "13": 1736000,
+    "B": 6000,
+    "N": 15000
+   }
+  },
+  "140101": {
+   "av": 92.0,
+   "part": 68.0,
+   "cont": 46,
+   "total": 50,
+   "votes": {
+    "8": 5200,
+    "13": 4800,
+    "B": 30,
+    "N": 90
+   }
+  },
+  "210000": {
+   "av": 67.48,
+   "part": 58.0,
+   "cont": 1800,
+   "total": 3200,
+   "votes": {
+    "8": 173600,
+    "13": 694400,
+    "B": 1200,
+    "N": 4000
+   }
+  },
+  "920000": {
+   "av": 40.0,
+   "part": 38.0,
+   "cont": 1000,
+   "total": 2500,
+   "votes": {
+    "8": 120000,
+    "13": 300000,
+    "B": 1000,
+    "N": 4000
+   }
+  },
+  "920200": {
+   "av": 42.0,
+   "part": 39.0,
+   "cont": 210,
+   "total": 500,
+   "votes": {
+    "8": 40000,
+    "13": 160000,
+    "B": 400,
+    "N": 1500
+   }
+  },
+  "920202": {
+   "av": 45.0,
+   "part": 40.0,
+   "cont": 90,
+   "total": 200,
+   "votes": {
+    "8": 15000,
+    "13": 70000,
+    "B": 100,
+    "N": 600
+   }
+  }
+ }
+}

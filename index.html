@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>conteoONPE · segunda vuelta 2026</title>
+<style>
+  :root{
+    --bg:#ffffff; --ink:#1a1a1a; --mut:#6b6b6b; --faint:#9a9a9a;
+    --line:#e4e4e4; --line2:#efefef; --panel:#fbfbfa;
+    --accent:#5a7a3a; --accent-soft:#eaf0e2;
+    --c0:#1d6a96;   /* candidato slot 0 */
+    --c1:#c1502e;   /* candidato slot 1 */
+    --blanco:#9aa0a6; --nulo:#5f6368;
+    --ok:#5a7a3a; --warn:#b9892f;
+    --mono:'Fira Code','JetBrains Mono','SFMono-Regular',ui-monospace,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--mono);
+    font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:1180px;margin:0 auto;padding:22px 18px 80px}
+  .lc{text-transform:lowercase}
+  header{border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:18px}
+  .back{font-size:12px;color:var(--faint)}
+  h1{font-size:19px;font-weight:600;margin:8px 0 2px;letter-spacing:-.2px}
+  .sub{font-size:12px;color:var(--mut)}
+  .src{font-size:11px;color:var(--faint);margin-top:6px}
+  .panel{border:1px solid var(--line);background:var(--panel);border-radius:6px;
+    padding:14px 16px;margin-bottom:16px}
+  .panel h2{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--mut);margin:0 0 12px}
+  .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .spacer{flex:1}
+  button,select,input[type=text]{font-family:var(--mono);font-size:12px;color:var(--ink);
+    background:#fff;border:1px solid var(--line);border-radius:4px;padding:5px 9px;cursor:pointer}
+  button:hover{border-color:var(--accent)}
+  button.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+  select{cursor:pointer}
+  input[type=text]{cursor:text;min-width:200px}
+  label.flbl{display:inline-flex;align-items:center;gap:7px;border:1px dashed var(--line);
+    border-radius:4px;padding:5px 9px;cursor:pointer;color:var(--mut)}
+  label.flbl:hover{border-color:var(--accent);color:var(--accent)}
+  .mut{color:var(--mut)} .faint{color:var(--faint)}
+  .big{font-size:30px;font-weight:600;letter-spacing:-1px;line-height:1}
+  .grid-sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}
+  .stat .k{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--faint)}
+  .stat .v{font-size:22px;font-weight:600;letter-spacing:-.5px}
+  .stat .v small{font-size:12px;color:var(--mut);font-weight:400;letter-spacing:0}
+  .cand-line{display:flex;align-items:center;gap:10px;margin:6px 0}
+  .swatch{width:11px;height:11px;border-radius:2px;flex:none}
+  .bar{height:8px;background:var(--line2);border-radius:4px;overflow:hidden;flex:1;min-width:80px;display:flex}
+  .bar span{height:100%}
+  .cand-name{min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cand-pct{font-variant-numeric:tabular-nums;font-weight:600;min-width:74px;text-align:right}
+  .cand-votes{font-variant-numeric:tabular-nums;color:var(--mut);min-width:96px;text-align:right}
+  table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+  th,td{text-align:right;padding:5px 8px;border-bottom:1px solid var(--line2);white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}
+  th{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);
+    cursor:pointer;user-select:none;position:sticky;top:0;background:var(--panel)}
+  th.sorted{color:var(--accent)}
+  tbody tr:hover{background:#fff}
+  td.name{max-width:280px;overflow:hidden;text-overflow:ellipsis}
+  .drill{cursor:pointer}
+  .drill:hover{color:var(--accent);text-decoration:underline}
+  .crumb{font-size:12px;color:var(--mut);margin-bottom:10px}
+  .crumb a{cursor:pointer}
+  .crumb .sep{color:var(--faint);margin:0 6px}
+  .tablewrap{max-height:420px;overflow:auto;border:1px solid var(--line2);border-radius:4px}
+  .map{display:flex;flex-wrap:wrap;gap:5px}
+  .tile{width:96px;border:1px solid var(--line);border-radius:4px;padding:7px 8px;cursor:pointer;
+    background:#fff;transition:transform .08s}
+  .tile:hover{transform:translateY(-2px);border-color:var(--accent)}
+  .tile .tn{font-size:10px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tile .tv{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:3px}
+  .tile.ext{border-style:dashed}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;font-size:11px;color:var(--mut);margin-top:10px}
+  .legend .swatch{display:inline-block;margin-right:5px;vertical-align:middle}
+  .pill{font-size:10px;padding:1px 6px;border-radius:9px;border:1px solid var(--line);color:var(--mut)}
+  .pill.lead{border-color:currentColor}
+  .twocol{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:760px){.twocol{grid-template-columns:1fr}}
+  .spark{width:100%;height:90px;display:block}
+  .note{font-size:11px;color:var(--faint);margin-top:8px}
+  .err{color:#b03030}
+  .tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px}
+  .tabs button{border-radius:4px}
+  .hidden{display:none}
+  .kbd{border:1px solid var(--line);border-radius:3px;padding:0 4px;font-size:11px;color:var(--mut)}
+  .delta-pos{color:var(--accent)} .delta-neg{color:#b03030}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="back"><a href="../">← toolbox/</a></div>
+    <h1 class="lc">conteoONPE · segunda vuelta 2026</h1>
+    <div class="sub lc">monitor del conteo oficial onpe · keiko fujimori vs roberto sánchez · datos desagregados por territorio</div>
+    <div class="src lc">fuente: <a href="https://resultadosegundavuelta.onpe.gob.pe/main/presidenciales" target="_blank" rel="noopener">resultadosegundavuelta.onpe.gob.pe</a> · solo datos reales, sin proyecciones de resultado final</div>
+  </header>
+
+  <div class="panel" id="srcPanel">
+    <h2>fuente de datos</h2>
+    <div class="row">
+      <label class="flbl lc">cargar snapshots…
+        <input type="file" id="fileIn" accept=".json,application/json" multiple class="hidden">
+      </label>
+      <span class="mut lc" id="srcInfo">buscando snapshots…</span>
+      <span class="spacer"></span>
+      <button id="reloadBtn" class="lc">recargar</button>
+    </div>
+    <div class="note lc" id="srcHelp"></div>
+  </div>
+
+  <div id="app" class="hidden">
+
+    <div class="panel">
+      <h2>resumen nacional · <span id="snapLabel" class="lc"></span></h2>
+      <div class="row" style="margin-bottom:14px">
+        <span class="lc mut">snapshot:</span>
+        <select id="snapSel"></select>
+        <span class="spacer"></span>
+        <span class="lc faint" id="snapMeta"></span>
+      </div>
+      <div class="grid-sum">
+        <div class="stat"><div class="k lc">avance nacional</div><div class="v" id="sAvance">—</div></div>
+        <div class="stat"><div class="k lc">actas contabilizadas</div><div class="v" id="sActas">—</div></div>
+        <div class="stat"><div class="k lc">actas pendientes</div><div class="v" id="sPend">—</div></div>
+        <div class="stat"><div class="k lc">participación</div><div class="v" id="sPart">—</div></div>
+      </div>
+      <div style="margin-top:16px" id="natCands"></div>
+      <div class="note lc" id="natMargin"></div>
+    </div>
+
+    <div class="panel">
+      <h2>mapa territorial</h2>
+      <div class="row" style="margin-bottom:12px">
+        <span class="lc mut">color:</span>
+        <button data-mm="ganador" class="lc">ganador</button>
+        <button data-mm="margen" class="lc">margen</button>
+        <button data-mm="avance" class="lc">avance</button>
+        <button data-mm="part" class="lc">participación</button>
+      </div>
+      <div class="map" id="map"></div>
+      <div class="legend lc" id="mapLegend"></div>
+    </div>
+
+    <div class="twocol">
+      <div class="panel">
+        <h2>navegador territorial</h2>
+        <div class="crumb lc" id="crumb"></div>
+        <div class="row" style="margin-bottom:10px">
+          <input type="text" id="search" class="lc" placeholder="buscar lugar…">
+        </div>
+        <div class="tablewrap">
+          <table id="browseTbl"><thead></thead><tbody></tbody></table>
+        </div>
+        <div class="note lc">click en un nombre con hijos para bajar de nivel · porcentajes sobre votos válidos</div>
+      </div>
+
+      <div class="panel">
+        <h2>detalle del lugar</h2>
+        <div id="detail"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>actas por procesar</h2>
+      <div class="tabs" id="pendTabs"></div>
+      <div class="tablewrap">
+        <table id="pendTbl"><thead></thead><tbody></tbody></table>
+      </div>
+      <div class="note lc">ordenado por actas pendientes (total − contabilizadas) · click en encabezado para reordenar</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ───────── almacenamiento seguro (no rompe en sandboxes sin localStorage) ───────── */
+const STORE_KEY="onpe2v_v1";
+function loadState(){try{return JSON.parse(localStorage.getItem(STORE_KEY))||{};}catch(e){return{};}}
+function saveState(){try{localStorage.setItem(STORE_KEY,JSON.stringify(state));}catch(e){}}
+
+/* ───────── config de fuente ───────── */
+const qp=new URLSearchParams(location.search);
+const SUBDIR=qp.has("subdir")?qp.get("subdir"):"snapshots";
+function inferRepo(){
+  if(qp.get("repo")) return qp.get("repo");
+  const h=location.hostname;
+  if(h.endsWith("github.io")){
+    const owner=h.split(".")[0];
+    const seg=location.pathname.split("/").filter(Boolean);
+    if(seg.length) return owner+"/"+seg[0];
+  }
+  return null;
+}
+const REPO=inferRepo();
+
+/* ───────── helpers de formato ───────── */
+const nf=new Intl.NumberFormat("es-PE");
+function fmt(n){return (n==null||isNaN(n))?"—":nf.format(Math.round(n));}
+function fmtS(n){if(n==null||isNaN(n))return"—";const a=Math.abs(n);
+  if(a>=1e6)return (n/1e6).toFixed(2).replace(/\.?0+$/,"")+"M";
+  if(a>=1e3)return (n/1e3).toFixed(1).replace(/\.?0+$/,"")+"k";return String(Math.round(n));}
+function pct3(n){return (n==null||isNaN(n))?"—":n.toFixed(3)+"%";}
+function pp3(n){return (n==null||isNaN(n))?"—":(n>=0?"+":"")+n.toFixed(3)+"pp";}
+function norm(s){return (s||"").toString().normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().trim();}
+
+/* ───────── estado ───────── */
+let DB=null;            // {snaps:[{ts,label,avance,nodes,data,master}], cands:[...], blancoNulo:[...]}
+let state=Object.assign({snapIdx:-1,node:"__root__",mapMode:"ganador",
+  browseSort:{col:"pend",dir:1},pendLevel:"distrito",pendSort:{col:"pend",dir:1}},loadState());
+
+/* ───────── descubrimiento / carga ───────── */
+async function discover(){
+  const base=location.href.replace(/[^/]*$/,"");
+  const tries=[];
+  const sd=SUBDIR?SUBDIR+"/":"";
+  // 1. manifest
+  try{
+    const m=await fetch(base+sd+"manifest.json",{cache:"no-store"});
+    if(m.ok){const arr=await m.json();const files=(Array.isArray(arr)?arr:arr.files||[])
+      .filter(f=>/onpe.*\.json$/i.test(f)).map(f=>base+sd+f);
+      if(files.length) return {via:"manifest",files};}
+  }catch(e){}
+  // 2. github api
+  if(REPO){
+    try{
+      const u="https://api.github.com/repos/"+REPO+"/contents/"+(SUBDIR||"");
+      const r=await fetch(u,{cache:"no-store"});
+      if(r.ok){const j=await r.json();
+        const files=j.filter(x=>x.type==="file"&&/onpe.*\.json$/i.test(x.name))
+          .map(x=>x.download_url);
+        if(files.length) return {via:"github:"+REPO,files};}
+    }catch(e){}
+  }
+  return {via:null,files:[]};
+}
+
+async function fetchAll(urls){
+  const out=[];
+  for(const u of urls){
+    try{const r=await fetch(u,{cache:"no-store"});if(r.ok)out.push(await r.json());}
+    catch(e){}
+  }
+  return out;
+}
+
+function readFiles(fileList){
+  return Promise.all([...fileList].map(f=>new Promise(res=>{
+    const fr=new FileReader();
+    fr.onload=()=>{try{res(JSON.parse(fr.result));}catch(e){res(null);}};
+    fr.onerror=()=>res(null);
+    fr.readAsText(f);
+  }))).then(a=>a.filter(Boolean));
+}
+
+/* ───────── construcción de la DB ───────── */
+function buildDB(rawSnaps){
+  const snaps=rawSnaps
+    .filter(s=>s&&s.snapshot&&s.nodes&&s.data)
+    .map(s=>({ts:s.snapshot.ts,label:s.snapshot.label||s.snapshot.ts,
+      avance:s.snapshot.avance,nodes:s.nodes,data:s.data,
+      master:s.candidatos_master||[]}))
+    .sort((a,b)=>new Date(a.ts)-new Date(b.ts));
+  if(!snaps.length) return null;
+  // master de referencia: el del último snapshot
+  const master=snaps[snaps.length-1].master;
+  const isBN=m=>{const t=norm(m.cand)+" "+norm(m.agr);
+    return /BLANCO|NULO|VICIAD|IMPUGNAD/.test(t);};
+  const cands=master.filter(m=>!isBN(m));
+  const blancoNulo=master.filter(isBN);
+  return {snaps,cands,blancoNulo,master};
+}
+
+/* ───────── acceso a datos ───────── */
+function snap(){return DB.snaps[state.snapIdx];}
+function nodeMeta(key){return snap().nodes[key];}
+function nodeData(key){return snap().data[key]||{};}
+function votesOf(key,code){const d=nodeData(key);return (d.votes&&d.votes[code])||0;}
+function validVotes(key){let s=0;for(const c of DB.cands)s+=votesOf(key,c.code);return s;}
+function emitidos(key){const d=nodeData(key);let s=0;if(d.votes)for(const k in d.votes)s+=d.votes[k];return s;}
+function pctValid(key,code){const v=validVotes(key);return v?votesOf(key,code)/v*100:null;}
+function leaderOf(key){let best=null,bv=-1;for(const c of DB.cands){const v=votesOf(key,c.code);
+  if(v>bv){bv=v;best=c;}}return validVotes(key)>0?best:null;}
+function marginOf(key){if(DB.cands.length<2)return null;
+  const ps=DB.cands.map(c=>pctValid(key,c.code)||0).sort((a,b)=>b-a);
+  return ps[0]-ps[1];}
+function avOf(key){const d=nodeData(key);return d.av!=null?d.av:(d.total?d.cont/d.total*100:null);}
+function pendOf(key){const d=nodeData(key);return (d.total!=null&&d.cont!=null)?d.total-d.cont:null;}
+
+/* color del candidato por slot estable */
+function candColor(code){const i=DB.cands.findIndex(c=>c.code===code);
+  return i===0?getCss("--c0"):i===1?getCss("--c1"):getCss("--mut");}
+function getCss(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+
+/* ───────── render: resumen nacional ───────── */
+function renderSummary(){
+  const s=snap();
+  document.getElementById("snapLabel").textContent=s.label;
+  document.getElementById("snapMeta").textContent=new Date(s.ts).toISOString().replace("T"," ").slice(0,16)+" utc";
+  const d=nodeData("__root__");
+  document.getElementById("sAvance").innerHTML=(avOf("__root__")!=null?avOf("__root__").toFixed(3):"—")+"<small>%</small>";
+  document.getElementById("sActas").innerHTML=fmt(d.cont)+" <small>/ "+fmt(d.total)+"</small>";
+  document.getElementById("sPend").textContent=fmt(pendOf("__root__"));
+  document.getElementById("sPart").innerHTML=(d.part!=null?d.part.toFixed(3):"—")+"<small>%</small>";
+
+  const wrap=document.getElementById("natCands");
+  wrap.innerHTML="";
+  const all=[...DB.cands,...DB.blancoNulo];
+  const valid=validVotes("__root__");
+  const emit=emitidos("__root__");
+  all.forEach(c=>{
+    const isC=DB.cands.includes(c);
+    const v=votesOf("__root__",c.code);
+    const p=isC?(valid?v/valid*100:0):(emit?v/emit*100:0);
+    const col=isC?candColor(c.code):(/NULO|VICIAD/.test(norm(c.cand)+norm(c.agr))?getCss("--nulo"):getCss("--blanco"));
+    const name=isC?(c.cand||c.agr):(c.cand||c.agr);
+    const el=document.createElement("div");el.className="cand-line";
+    el.innerHTML=`<span class="swatch" style="background:${col}"></span>
+      <span class="cand-name lc" title="${name}">${name.toLowerCase()}${isC?` <span class="faint">· ${(c.agr||"").toLowerCase()}</span>`:""}</span>
+      <span class="bar"><span style="width:${Math.max(0,Math.min(100,p)).toFixed(2)}%;background:${col}"></span></span>
+      <span class="cand-pct">${pct3(p)}</span>
+      <span class="cand-votes">${fmt(v)}</span>`;
+    wrap.appendChild(el);
+  });
+  const ld=leaderOf("__root__");const mg=marginOf("__root__");
+  if(ld){const sorted=DB.cands.map(c=>({c,v:votesOf("__root__",c.code)})).sort((a,b)=>b.v-a.v);
+    const diff=sorted.length>1?sorted[0].v-sorted[1].v:0;
+    document.getElementById("natMargin").textContent=
+      `lidera ${(ld.cand||ld.agr).toLowerCase()} · margen ${pp3(mg)} · ${fmt(diff)} votos`;
+  }else document.getElementById("natMargin").textContent="";
+}
+
+/* ───────── render: mapa ───────── */
+const DEPT_ORDER=["TUMBES","PIURA","LAMBAYEQUE","CAJAMARCA","AMAZONAS","LORETO","SAN MARTIN",
+  "LA LIBERTAD","ANCASH","HUANUCO","UCAYALI","LIMA","CALLAO","PASCO","JUNIN","MADRE DE DIOS",
+  "ICA","HUANCAVELICA","AYACUCHO","APURIMAC","CUSCO","AREQUIPA","PUNO","MOQUEGUA","TACNA"];
+function deptKeys(){
+  const out=[];for(const k in snap().nodes){const n=snap().nodes[k];
+    if(n.nivel==="departamento"&&n.ambito===1)out.push(k);}
+  out.sort((a,b)=>{const ia=DEPT_ORDER.indexOf(norm(snap().nodes[a].nombre));
+    const ib=DEPT_ORDER.indexOf(norm(snap().nodes[b].nombre));
+    return (ia<0?99:ia)-(ib<0?99:ib);});return out;}
+function extKeys(){
+  const out=[];for(const k in snap().nodes){const n=snap().nodes[k];
+    if(n.nivel==="departamento"&&n.ambito===2)out.push(k);}return out;}
+function lerpColor(hex,t){ // mezcla hex hacia blanco según t∈[0,1] (t=1 lleno)
+  const c=hex.replace("#","");const r=parseInt(c.slice(0,2),16),g=parseInt(c.slice(2,4),16),b=parseInt(c.slice(4,6),16);
+  const m=x=>Math.round(255-(255-x)*Math.max(.12,Math.min(1,t)));
+  return `rgb(${m(r)},${m(g)},${m(b)})`;}
+function tileColor(key){
+  const mm=state.mapMode;
+  if(mm==="ganador"){const ld=leaderOf(key);return ld?lerpColor(candColor(ld.code),.62):"#fff";}
+  if(mm==="margen"){const ld=leaderOf(key);const mg=marginOf(key)||0;
+    return ld?lerpColor(candColor(ld.code),Math.min(1,mg/30)):"#fff";}
+  if(mm==="avance"){const a=avOf(key)||0;return lerpColor(getCss("--accent"),a/100);}
+  if(mm==="part"){const p=nodeData(key).part||0;return lerpColor(getCss("--c0"),p/100);}
+  return "#fff";
+}
+function tileValue(key){
+  const mm=state.mapMode;
+  if(mm==="avance")return (avOf(key)!=null?avOf(key).toFixed(1):"—")+"%";
+  if(mm==="part")return (nodeData(key).part!=null?nodeData(key).part.toFixed(1):"—")+"%";
+  if(mm==="margen")return marginOf(key)!=null?marginOf(key).toFixed(1)+"pp":"—";
+  const ld=leaderOf(key);return ld?pct3(pctValid(key,ld.code)).replace("%",""):"—";
+}
+function renderMap(){
+  document.querySelectorAll("[data-mm]").forEach(b=>b.classList.toggle("on",b.dataset.mm===state.mapMode));
+  const map=document.getElementById("map");map.innerHTML="";
+  const mk=(key,ext)=>{const n=snap().nodes[key];const t=document.createElement("div");
+    t.className="tile"+(ext?" ext":"");t.style.background=tileColor(key);
+    t.innerHTML=`<div class="tn" title="${n.nombre}">${n.nombre.toLowerCase()}</div>
+      <div class="tv">${tileValue(key)}</div>`;
+    t.onclick=()=>{state.node=key;saveState();renderBrowser();renderDetail();
+      document.getElementById("crumb").scrollIntoView({behavior:"smooth",block:"center"});};
+    return t;};
+  deptKeys().forEach(k=>map.appendChild(mk(k,false)));
+  extKeys().forEach(k=>map.appendChild(mk(k,true)));
+  // leyenda
+  const lg=document.getElementById("mapLegend");
+  if(state.mapMode==="ganador"||state.mapMode==="margen"){
+    lg.innerHTML=DB.cands.map(c=>`<span><span class="swatch" style="background:${candColor(c.code)}"></span>${(c.cand||c.agr).toLowerCase()}</span>`).join("")
+      +`<span class="faint">borde punteado = extranjero · ${state.mapMode==="margen"?"intensidad = margen":"intensidad fija"}</span>`;
+  }else if(state.mapMode==="avance"){
+    lg.innerHTML=`<span><span class="swatch" style="background:${lerpColor(getCss('--accent'),1)}"></span>más actas contabilizadas</span><span class="faint">claro = menos avance</span>`;
+  }else{
+    lg.innerHTML=`<span><span class="swatch" style="background:${lerpColor(getCss('--c0'),1)}"></span>mayor participación</span>`;
+  }
+}
+
+/* ───────── render: navegador territorial ───────── */
+function childrenOf(key){const n=snap().nodes[key];return (n&&n.children)||[];}
+function renderCrumb(){
+  const path=[];let k=state.node;
+  while(k){path.unshift(k);const n=snap().nodes[k];k=n?n.parent:null;}
+  const c=document.getElementById("crumb");c.innerHTML="";
+  path.forEach((key,i)=>{const n=snap().nodes[key];
+    const a=document.createElement("a");a.className="lc";a.textContent=(n.nombre||key).toLowerCase();
+    a.onclick=()=>{state.node=key;saveState();renderBrowser();renderDetail();};
+    c.appendChild(a);
+    if(i<path.length-1){const s=document.createElement("span");s.className="sep";s.textContent="›";c.appendChild(s);}
+  });
+}
+function renderBrowser(){
+  renderCrumb();
+  const q=norm(document.getElementById("search").value);
+  let kids=childrenOf(state.node);
+  if(q){ // búsqueda global de nodos por nombre
+    kids=Object.keys(snap().nodes).filter(k=>k!=="__root__"&&norm(snap().nodes[k].nombre).includes(q));
+  }
+  const cands=DB.cands;
+  const rows=kids.map(k=>({k,n:snap().nodes[k],
+    pa:pctValid(k,cands[0]&&cands[0].code),
+    pb:pctValid(k,cands[1]&&cands[1].code),
+    mg:marginOf(k),av:avOf(k),pend:pendOf(k)}));
+  const sc=state.browseSort;
+  rows.sort((x,y)=>{let a,b;
+    if(sc.col==="name"){a=norm(x.n.nombre);b=norm(y.n.nombre);return a<b?-sc.dir:a>b?sc.dir:0;}
+    a=x[sc.col]; b=y[sc.col]; a=(a==null?-1:a); b=(b==null?-1:b);
+    return (a-b)*sc.dir;});
+  const thead=document.querySelector("#browseTbl thead");
+  const cols=[["name","lugar"],["pa",(cands[0]?(cands[0].cand||cands[0].agr).split(" ")[0]:"a").toLowerCase()+"%"],
+    ["pb",(cands[1]?(cands[1].cand||cands[1].agr).split(" ")[0]:"b").toLowerCase()+"%"],
+    ["mg","margen"],["av","avance"],["pend","pend"]];
+  thead.innerHTML="<tr>"+cols.map(([c,l])=>`<th data-c="${c}" class="${sc.col===c?'sorted':''}">${l}${sc.col===c?(sc.dir>0?" ↑":" ↓"):""}</th>`).join("")+"</tr>";
+  thead.querySelectorAll("th").forEach(th=>th.onclick=()=>{
+    const c=th.dataset.c;if(state.browseSort.col===c)state.browseSort.dir*=-1;
+    else state.browseSort={col:c,dir:c==="name"?1:-1};saveState();renderBrowser();});
+  const tb=document.querySelector("#browseTbl tbody");tb.innerHTML="";
+  rows.forEach(r=>{const hasKids=childrenOf(r.k).length>0;
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td class="name ${hasKids?'drill':''} lc" title="${r.n.nombre}">${r.n.nombre.toLowerCase()}${hasKids?' <span class="faint">›</span>':''}</td>
+      <td style="color:${cands[0]?candColor(cands[0].code):''}">${r.pa!=null?r.pa.toFixed(3):"—"}</td>
+      <td style="color:${cands[1]?candColor(cands[1].code):''}">${r.pb!=null?r.pb.toFixed(3):"—"}</td>
+      <td>${r.mg!=null?r.mg.toFixed(3):"—"}</td>
+      <td>${r.av!=null?r.av.toFixed(3):"—"}</td>
+      <td>${r.pend!=null?fmt(r.pend):"—"}</td>`;
+    const nameCell=tr.querySelector("td.name");
+    nameCell.onclick=()=>{if(hasKids){state.node=r.k;document.getElementById("search").value="";}
+      else{state.node=r.k;}saveState();renderBrowser();renderDetail();};
+    tb.appendChild(tr);
+  });
+}
+
+/* ───────── render: detalle + tendencia ───────── */
+function renderDetail(){
+  const key=state.node;const n=snap().nodes[key];const det=document.getElementById("detail");
+  if(!n){det.innerHTML="<span class='mut lc'>—</span>";return;}
+  const valid=validVotes(key),emit=emitidos(key);
+  let html=`<div class="big lc">${n.nombre.toLowerCase()}</div>
+    <div class="mut lc" style="margin-bottom:12px">${n.nivel}${n.ambito===2?" · extranjero":""}</div>`;
+  [...DB.cands,...DB.blancoNulo].forEach(c=>{
+    const isC=DB.cands.includes(c);const v=votesOf(key,c.code);
+    const p=isC?(valid?v/valid*100:0):(emit?v/emit*100:0);
+    const col=isC?candColor(c.code):(/NULO|VICIAD/.test(norm(c.cand)+norm(c.agr))?getCss("--nulo"):getCss("--blanco"));
+    html+=`<div class="cand-line"><span class="swatch" style="background:${col}"></span>
+      <span class="cand-name lc">${(c.cand||c.agr).toLowerCase()}</span>
+      <span class="bar"><span style="width:${Math.max(0,Math.min(100,p)).toFixed(2)}%;background:${col}"></span></span>
+      <span class="cand-pct">${pct3(p)}</span><span class="cand-votes">${fmt(v)}</span></div>`;
+  });
+  const d=nodeData(key);
+  html+=`<table style="margin-top:14px"><tbody>
+    <tr><td class="lc mut">votos válidos</td><td>${fmt(valid)}</td></tr>
+    <tr><td class="lc mut">votos emitidos</td><td>${fmt(emit)}</td></tr>
+    <tr><td class="lc mut">avance</td><td>${avOf(key)!=null?avOf(key).toFixed(3)+"%":"—"}</td></tr>
+    <tr><td class="lc mut">actas</td><td>${fmt(d.cont)} / ${fmt(d.total)}</td></tr>
+    <tr><td class="lc mut">pendientes</td><td>${fmt(pendOf(key))}</td></tr>
+    ${d.part!=null?`<tr><td class="lc mut">participación</td><td>${d.part.toFixed(3)}%</td></tr>`:""}
+  </tbody></table>`;
+  if(DB.snaps.length>1) html+=`<div class="lc mut" style="margin-top:14px;font-size:11px">tendencia (% válidos)</div>`+sparkSVG(key);
+  det.innerHTML=html;
+}
+function sparkSVG(key){
+  const W=380,H=90,pad=4;const xs=DB.snaps.map((s,i)=>i);
+  const series=DB.cands.map(c=>({c,pts:DB.snaps.map(s=>{
+    const sv=s.data[key];if(!sv||!sv.votes)return null;
+    let valid=0;DB.cands.forEach(cc=>valid+=sv.votes[cc.code]||0);
+    return valid?(sv.votes[c.code]||0)/valid*100:null;})}));
+  const all=series.flatMap(s=>s.pts).filter(v=>v!=null);
+  if(all.length<2)return "<div class='note lc'>se necesita más de un snapshot para la tendencia</div>";
+  const mn=Math.min(...all),mx=Math.max(...all),rng=(mx-mn)||1;
+  const X=i=>pad+(W-2*pad)*(xs.length>1?i/(xs.length-1):0);
+  const Y=v=>pad+(H-2*pad)*(1-(v-mn)/rng);
+  let svg=`<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">`;
+  series.forEach(s=>{const col=candColor(s.c.code);
+    let dpath="",started=false;
+    s.pts.forEach((v,i)=>{if(v==null)return;dpath+=(started?"L":"M")+X(i)+" "+Y(v)+" ";started=true;});
+    if(dpath)svg+=`<path d="${dpath}" fill="none" stroke="${col}" stroke-width="1.6"/>`;
+    const last=[...s.pts].reverse().find(v=>v!=null);
+    if(last!=null){const li=s.pts.lastIndexOf(last);
+      svg+=`<circle cx="${X(li)}" cy="${Y(last)}" r="2.4" fill="${col}"/>`;}
+  });
+  svg+=`</svg>`;return svg;
+}
+
+/* ───────── render: actas pendientes ───────── */
+function renderPending(){
+  const levels=[["distrito","distritos (perú)"],["provincia","provincias (perú)"],
+    ["departamento","deptos"],["ext_distrito","ciudades (ext.)"],["ext_provincia","países (ext.)"]];
+  const tabs=document.getElementById("pendTabs");tabs.innerHTML="";
+  levels.forEach(([lv,lbl])=>{const b=document.createElement("button");b.className="lc"+(state.pendLevel===lv?" on":"");
+    b.textContent=lbl;b.onclick=()=>{state.pendLevel=lv;saveState();renderPending();};tabs.appendChild(b);});
+  const wantAmb=state.pendLevel.startsWith("ext_")?2:1;
+  const wantNivel=state.pendLevel.replace("ext_","");
+  const keys=Object.keys(snap().nodes).filter(k=>{const n=snap().nodes[k];
+    return n.nivel===wantNivel&&n.ambito===wantAmb;});
+  const cands=DB.cands;
+  let rows=keys.map(k=>({k,n:snap().nodes[k],pend:pendOf(k),total:nodeData(k).total,
+    av:avOf(k),pa:pctValid(k,cands[0]&&cands[0].code),pb:pctValid(k,cands[1]&&cands[1].code)}))
+    .filter(r=>r.pend!=null);
+  const sc=state.pendSort;
+  rows.sort((x,y)=>{let a,b;if(sc.col==="name"){a=norm(x.n.nombre);b=norm(y.n.nombre);return a<b?-sc.dir:a>b?sc.dir:0;}
+    a=x[sc.col]==null?-1:x[sc.col];b=y[sc.col]==null?-1:y[sc.col];return (a-b)*sc.dir;});
+  const cols=[["name","lugar"],["pend","pendientes"],["total","total actas"],["av","avance"],
+    ["pa",(cands[0]?(cands[0].cand||cands[0].agr).split(" ")[0]:"a").toLowerCase()+"%"],
+    ["pb",(cands[1]?(cands[1].cand||cands[1].agr).split(" ")[0]:"b").toLowerCase()+"%"]];
+  const thead=document.querySelector("#pendTbl thead");
+  thead.innerHTML="<tr>"+cols.map(([c,l])=>`<th data-c="${c}" class="${sc.col===c?'sorted':''}">${l}${sc.col===c?(sc.dir>0?" ↑":" ↓"):""}</th>`).join("")+"</tr>";
+  thead.querySelectorAll("th").forEach(th=>th.onclick=()=>{const c=th.dataset.c;
+    if(state.pendSort.col===c)state.pendSort.dir*=-1;else state.pendSort={col:c,dir:c==="name"?1:-1};
+    saveState();renderPending();});
+  const tb=document.querySelector("#pendTbl tbody");tb.innerHTML="";
+  rows.forEach(r=>{const tr=document.createElement("tr");
+    tr.innerHTML=`<td class="name drill lc" title="${r.n.nombre}">${r.n.nombre.toLowerCase()}</td>
+      <td>${fmt(r.pend)}</td><td>${fmt(r.total)}</td>
+      <td>${r.av!=null?r.av.toFixed(3):"—"}</td>
+      <td style="color:${cands[0]?candColor(cands[0].code):''}">${r.pa!=null?r.pa.toFixed(3):"—"}</td>
+      <td style="color:${cands[1]?candColor(cands[1].code):''}">${r.pb!=null?r.pb.toFixed(3):"—"}</td>`;
+    tr.querySelector("td.name").onclick=()=>{state.node=r.k;saveState();
+      renderBrowser();renderDetail();document.getElementById("crumb").scrollIntoView({behavior:"smooth",block:"center"});};
+    tb.appendChild(tr);});
+}
+
+/* ───────── render: selector de snapshots ───────── */
+function renderSnapSel(){
+  const sel=document.getElementById("snapSel");sel.innerHTML="";
+  DB.snaps.forEach((s,i)=>{const o=document.createElement("option");o.value=i;
+    o.textContent=`${s.label} · ${s.avance!=null?s.avance.toFixed(2)+"%":"—"}`;sel.appendChild(o);});
+  sel.value=state.snapIdx;
+  sel.onchange=()=>{state.snapIdx=+sel.value;saveState();renderAll();};
+}
+
+/* ───────── orquestación ───────── */
+function renderAll(){renderSnapSel();renderSummary();renderMap();renderBrowser();renderDetail();renderPending();}
+
+function boot(rawSnaps){
+  DB=buildDB(rawSnaps);
+  if(!DB){fail("los archivos no tienen el formato de snapshot esperado.");return;}
+  if(state.snapIdx<0||state.snapIdx>=DB.snaps.length)state.snapIdx=DB.snaps.length-1;
+  if(!snap().nodes[state.node])state.node="__root__";
+  document.getElementById("app").classList.remove("hidden");
+  document.getElementById("srcInfo").textContent=
+    `${DB.snaps.length} snapshot(s) · ${DB.cands.length} candidatos · último avance ${DB.snaps[DB.snaps.length-1].avance!=null?DB.snaps[DB.snaps.length-1].avance.toFixed(2)+"%":"—"}`;
+  // listeners de mapa y búsqueda
+  document.querySelectorAll("[data-mm]").forEach(b=>b.onclick=()=>{state.mapMode=b.dataset.mm;saveState();renderMap();});
+  document.getElementById("search").oninput=()=>renderBrowser();
+  renderAll();
+  window.DEBUG={DB,state,nodeData,pctValid,leaderOf};
+}
+function fail(msg){
+  document.getElementById("srcInfo").innerHTML=`<span class="err lc">${msg}</span>`;
+}
+
+/* ───────── arranque ───────── */
+async function start(){
+  document.getElementById("srcInfo").textContent="buscando snapshots…";
+  const help=document.getElementById("srcHelp");
+  const res=await discover();
+  if(res.files.length){
+    const raw=await fetchAll(res.files);
+    if(raw.length){help.textContent=`origen: ${res.via} · subdir: ${SUBDIR||"(raíz)"}`;boot(raw);return;}
+  }
+  document.getElementById("srcInfo").textContent="no se encontraron snapshots automáticamente.";
+  help.innerHTML=`subí archivos <span class="kbd">onpe_data_*.json</span> con «cargar snapshots…», `+
+    `o configurá el repo con <span class="kbd">?repo=usuario/repo</span> y <span class="kbd">?subdir=snapshots</span>. `+
+    (REPO?`repo detectado: ${REPO}.`:`no se detectó repo github.`);
+}
+document.getElementById("fileIn").addEventListener("change",async e=>{
+  const raw=await readFiles(e.target.files);
+  if(raw.length){document.getElementById("srcHelp").textContent="origen: archivos locales";boot(raw);}
+  else fail("no pude leer esos archivos como json.");
+});
+document.getElementById("reloadBtn").onclick=()=>start();
+start();
+</script>
+</body>
+</html>
