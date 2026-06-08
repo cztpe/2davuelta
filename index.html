@@ -128,7 +128,7 @@
         <div class="tabs" id="lvlTabs"></div>
         <div class="tabs" id="ambTabs"></div>
         <div class="tablewrap"><table id="pendTbl"><thead></thead><tbody></tbody></table></div>
-        <div class="note lc">top 20 por actas pendientes · "lider" y "margen" son el resultado ACTUAL en esa zona · "votos x contar" es estimado</div>
+        <div class="note lc">click en cualquier encabezado para ordenar de mayor a menor · muestra hasta 100 filas segun el orden · "votos x contar" es estimado, los % son el resultado actual de cada zona</div>
       </div>
     </div>
 
@@ -188,7 +188,7 @@ function norm(s){return (s||"").toString().normalize("NFD").replace(/[\u0300-\u0
 function getCss(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
 
 let SNAPS=null,DB=null,EST=null;
-let state=Object.assign({view:"falta",snapIdx:-1,lvl:"distrito",amb:"todos",
+let state=Object.assign({view:"falta",snapIdx:-1,lvl:"distrito",amb:"todos",scenCand:null,pendSort:{col:"pend",dir:-1},
   node:"__root__",mapMode:"ganador",browseSort:{col:"pend",dir:1}},loadState());
 
 /* ---------- carga ---------- */
@@ -330,17 +330,25 @@ function renderPendTable(){
   const ambs=[["todos","peru + extranjero"],["1","solo peru"],["2","solo extranjero"]];
   const at=document.getElementById("ambTabs");at.innerHTML="";
   ambs.forEach(([a,lbl])=>{const b=document.createElement("button");b.className="lc"+(state.amb===a?" on":"");b.textContent=lbl;b.onclick=()=>{state.amb=a;saveState();renderPendTable();};at.appendChild(b);});
+  const cands=DB.cands;
   let keys=Object.keys(DB.nodes).filter(k=>DB.nodes[k].nivel===state.lvl);
   if(state.amb!=="todos")keys=keys.filter(k=>String(DB.nodes[k].ambito)===state.amb);
-  let rows=keys.map(k=>({k,nombre:DB.nodes[k].nombre,region:deptName(k),pend:pendActas(k),pv:pendVotes(k),ld:leaderOf(k),mg:marginPP(k),av:avOf(k)})).filter(r=>r.pend>0);
-  rows.sort((a,b)=>b.pend-a.pend);rows=rows.slice(0,20);
-  document.querySelector("#pendTbl thead").innerHTML=`<tr><th>zona</th><th>region</th><th>actas pend.</th><th>votos x contar (est.)</th><th>avance</th><th>lider actual</th><th>margen</th></tr>`;
+  let rows=keys.map(k=>({k,nombre:DB.nodes[k].nombre,region:deptName(k),pend:pendActas(k),pv:pendVotes(k),mg:marginPP(k),av:avOf(k),
+    pa:pctValid(k,cands[0]&&cands[0].code),pb:pctValid(k,cands[1]&&cands[1].code)})).filter(r=>r.pend>0);
+  const sc=state.pendSort||{col:"pend",dir:-1};
+  rows.sort((x,y)=>{if(sc.col==="name"||sc.col==="region"){const a=norm(x[sc.col]),b=norm(y[sc.col]);return a<b?-sc.dir:a>b?sc.dir:0;}
+    const a=x[sc.col]==null?-Infinity:x[sc.col],b=y[sc.col]==null?-Infinity:y[sc.col];return (a-b)*sc.dir;});
+  const shown=rows.slice(0,100);
+  const cols=[["name","zona"],["region","region"],["pa",(cands[0]?candShort(cands[0]):"a").toLowerCase()+"%"],["pb",(cands[1]?candShort(cands[1]):"b").toLowerCase()+"%"],["mg","margen"],["av","avance"],["pend","actas pend."],["pv","votos x contar"]];
+  const thead=document.querySelector("#pendTbl thead");
+  thead.innerHTML="<tr>"+cols.map(([c,l])=>`<th data-c="${c}" class="${sc.col===c?'sorted':''}">${l}${sc.col===c?(sc.dir>0?" ↑":" ↓"):""}</th>`).join("")+"</tr>";
+  thead.querySelectorAll("th").forEach(th=>th.onclick=()=>{const c=th.dataset.c;if(sc.col===c)state.pendSort={col:c,dir:-sc.dir};else state.pendSort={col:c,dir:(c==="name"||c==="region")?1:-1};saveState();renderPendTable();});
   const tb=document.querySelector("#pendTbl tbody");tb.innerHTML="";
-  rows.forEach(r=>{const col=r.ld?candColor(r.ld.code):"";
-    tb.insertAdjacentHTML("beforeend",`<tr><td class="name lc" title="${r.nombre}">${r.nombre.toLowerCase()}</td><td class="lc mut">${(r.region||"").toLowerCase()}</td>
-      <td>${fmt(r.pend)}</td><td>~${fmt(r.pv)}</td><td>${r.av!=null?r.av.toFixed(2):"—"}%</td>
-      <td><span class="lead-pill lc" style="color:${col}">${r.ld?candShort(r.ld).toLowerCase():"—"}</span></td><td>${r.mg!=null?r.mg.toFixed(3)+"pp":"—"}</td></tr>`);});
-  if(!rows.length)tb.innerHTML=`<tr><td colspan="7" class="lc faint">no hay zonas con actas pendientes en este filtro</td></tr>`;
+  shown.forEach(r=>{tb.insertAdjacentHTML("beforeend",`<tr><td class="name lc" title="${r.nombre}">${r.nombre.toLowerCase()}</td><td class="lc mut">${(r.region||"").toLowerCase()}</td>
+    <td style="color:${cands[0]?candColor(cands[0].code):''}">${r.pa!=null?r.pa.toFixed(3):"—"}</td>
+    <td style="color:${cands[1]?candColor(cands[1].code):''}">${r.pb!=null?r.pb.toFixed(3):"—"}</td>
+    <td>${r.mg!=null?r.mg.toFixed(3)+"pp":"—"}</td><td>${r.av!=null?r.av.toFixed(2):"—"}%</td><td>${fmt(r.pend)}</td><td>~${fmt(r.pv)}</td></tr>`);});
+  if(!shown.length)tb.innerHTML=`<tr><td colspan="8" class="lc faint">no hay zonas con actas pendientes en este filtro</td></tr>`;
 }
 function renderFalta(){renderFaltaSummary();renderVerdict();renderRem();renderAmbitos();renderPendTable();}
 
@@ -436,42 +444,44 @@ function renderExplora(){
 /* ===================== RENDER: VISTA ESCENARIOS ===================== */
 function renderEscenarios(){
   const cands=DB.cands;const wrapU=document.getElementById("umbral");const scenT=document.querySelector("#scenTbl");const sim=document.getElementById("simWrap");
-  if(cands.length<2||!EST.leader||!EST.trailing){wrapU.innerHTML="<span class='mut lc'>se necesitan dos candidatos</span>";scenT.querySelector("thead").innerHTML="";scenT.querySelector("tbody").innerHTML="";sim.innerHTML="";return;}
-  const L=EST.leader,T=EST.trailing;const curL=EST.cur[L.code],curT=EST.cur[T.code];
-  const Rvalid=cands.reduce((s,c)=>s+EST.rem[c.code],0);            // votos validos que faltan (est)
-  const ventaja=curL-curT;
-  const fStar=Rvalid>0?0.5+ventaja/(2*Rvalid):Infinity;            // fraccion que T necesita para empatar/superar
-  const localShare=Rvalid>0?EST.rem[T.code]/Rvalid:0;             // lo que T se llevaria por tendencia local
-  const natShare=(curL+curT)>0?curT/(curL+curT):0;               // share actual de T en lo ya contado
-  const sT=candShort(T).toLowerCase(),sL=candShort(L).toLowerCase();
-  const alcanzable=fStar<=1;
-  wrapU.innerHTML=`<div class="verdict ${(alcanzable&&localShare>=fStar)?'hot':''}">
-    <div class="h lc">${sT} necesita ${alcanzable?`mas del <b class="num">${(fStar*100).toFixed(1)}%</b> de los votos validos que faltan`:`mas votos de los que quedan: imposible dar vuelta`}</div>
-    <div class="d lc">faltan ~<b class="num">${fmt(Rvalid)}</b> votos validos por contar. ${sT} viene llevandose el <b class="num">${(natShare*100).toFixed(1)}%</b> de lo ya contado,
-      y por la tendencia de las zonas pendientes se estima que se llevaria el <b class="num">${(localShare*100).toFixed(1)}%</b> de lo que falta.
-      ${alcanzable?(localShare>=fStar?` ese ${(localShare*100).toFixed(1)}% supera el umbral, asi que bajo ese supuesto ${sT} daria vuelta el resultado.`:` ese ${(localShare*100).toFixed(1)}% no llega al umbral de ${(fStar*100).toFixed(1)}%, asi que bajo ese supuesto no alcanza.`):``}</div></div>`;
-  document.getElementById("escNota").textContent="que otras fuentes anticipen una ganadora distinta suele venir de suponer que lo que falta se inclina mas fuerte que lo ya contado (zonas rurales, extranjero, actas observadas). este tablero no asigna probabilidades: el simulador de abajo te deja ver que reparto haria falta para cada desenlace.";
-  // tabla de escenarios
-  const escenarios=[["tendencia local (estimado)",localShare],["como el total ya contado",natShare],["reparto parejo 50/50",0.5],["umbral exacto para dar vuelta",Math.min(1,Math.max(0,fStar))]];
-  scenT.querySelector("thead").innerHTML=`<tr><th>supuesto</th><th>% para ${sT}</th><th>${sL} final</th><th>${sT} final</th><th>margen final</th><th>arriba</th></tr>`;
+  if(cands.length<2){wrapU.innerHTML="<span class='mut lc'>se necesitan dos candidatos</span>";scenT.querySelector("thead").innerHTML="";scenT.querySelector("tbody").innerHTML="";sim.innerHTML="";return;}
+  if(!state.scenCand||!cands.find(c=>c.code===state.scenCand))state.scenCand=(EST.trailing||cands[0]).code;
+  const X=cands.find(c=>c.code===state.scenCand);
+  let O=null,ov=-Infinity;for(const c of cands){if(c.code===X.code)continue;if(EST.cur[c.code]>ov){ov=EST.cur[c.code];O=c;}}
+  const curX=EST.cur[X.code],curO=EST.cur[O.code];
+  const Rvalid=cands.reduce((s,c)=>s+EST.rem[c.code],0);
+  const needs=Rvalid>0?0.5+(curO-curX)/(2*Rvalid):Infinity;     // fraccion de lo que falta que X necesita para ganar
+  const localShare=Rvalid>0?EST.rem[X.code]/Rvalid:0;
+  const natShare=(curX+curO)>0?curX/(curX+curO):0;
+  const sX=candShort(X).toLowerCase(),sO=candShort(O).toLowerCase();
+  wrapU.innerHTML=`<div class="tabs" id="scenCandTabs"></div><div id="umbralBody"></div>`;
+  const tabsEl=document.getElementById("scenCandTabs");
+  cands.forEach(c=>{const b=document.createElement("button");b.className="lc"+(c.code===state.scenCand?" on":"");b.textContent="¿que necesita "+candShort(c).toLowerCase()+"?";
+    b.onclick=()=>{state.scenCand=c.code;saveState();renderEscenarios();};tabsEl.appendChild(b);});
+  let head,detail;
+  if(needs<=0){head=`${sX} ya gana con lo ya contado`;detail=`su ventaja actual supera a todos los votos que faltan, asi que el resto no la cambia.`;}
+  else if(needs>1){head=`${sX} no puede dar vuelta`;detail=`ni llevandose el 100% de los votos validos que faltan alcanza para superar a ${sO}.`;}
+  else{const va=localShare>=needs;head=`${sX} necesita mas del ${(needs*100).toFixed(1)}% de lo que falta`;
+    detail=`faltan ~<b class="num">${fmt(Rvalid)}</b> votos validos. ${sX} viene sacando el <b class="num">${(natShare*100).toFixed(1)}%</b> de lo ya contado, y por la tendencia de las zonas pendientes se estima que se llevaria el <b class="num">${(localShare*100).toFixed(1)}%</b> de lo que falta. ${va?`ese ${(localShare*100).toFixed(1)}% supera el umbral, asi que bajo ese supuesto ${sX} gana.`:`ese ${(localShare*100).toFixed(1)}% no llega al umbral de ${(needs*100).toFixed(1)}%, asi que por tendencia local no le alcanza.`}`;}
+  document.getElementById("umbralBody").innerHTML=`<div class="verdict ${(needs>0&&needs<=1&&localShare>=needs)?'hot':''}"><div class="h lc">${head}</div><div class="d lc">${detail}</div></div>`;
+  document.getElementById("escNota").textContent="que otras fuentes anticipen otra ganadora suele venir de suponer que lo que falta se inclina mas fuerte que lo ya contado (zonas rurales, extranjero). este tablero no asigna probabilidades: el simulador de abajo te deja ver que reparto haria falta. ojo: ~"+fmt(EST.jeeEnv||0)+" de lo pendiente son actas observadas que resuelve el jurado.";
+  const esc=[["tendencia local (estimado)",localShare],["como el total ya contado",natShare],["reparto parejo 50/50",0.5],["umbral para que gane "+sX,Math.min(1,Math.max(0,needs))]];
+  scenT.querySelector("thead").innerHTML=`<tr><th>supuesto</th><th>% para ${sX}</th><th>${sX} final</th><th>${sO} final</th><th>margen final</th><th>gana</th></tr>`;
   const tb=scenT.querySelector("tbody");tb.innerHTML="";
-  escenarios.forEach(([lbl,f])=>{const fT=curT+f*Rvalid,fL=curL+(1-f)*Rvalid,tot=fT+fL||1;const win=fL>=fT?sL:sT;const mg=Math.abs(fL-fT);
-    tb.insertAdjacentHTML("beforeend",`<tr><td class="lc">${lbl}</td><td>${(f*100).toFixed(1)}%</td>
-      <td style="color:${candColor(L.code)}">${(fL/tot*100).toFixed(3)}%</td><td style="color:${candColor(T.code)}">${(fT/tot*100).toFixed(3)}%</td>
-      <td>${fmt(mg)}</td><td><span class="lead-pill lc" style="color:${win===sL?candColor(L.code):candColor(T.code)}">${win}</span></td></tr>`);});
-  // simulador
+  esc.forEach(([lbl,f])=>{const fX=curX+f*Rvalid,fO=curO+(1-f)*Rvalid,tot=fX+fO||1;const win=fX>=fO?sX:sO;const mg=Math.abs(fX-fO);
+    tb.insertAdjacentHTML("beforeend",`<tr><td class="lc">${lbl}</td><td>${(f*100).toFixed(1)}%</td><td style="color:${candColor(X.code)}">${(fX/tot*100).toFixed(3)}%</td><td style="color:${candColor(O.code)}">${(fO/tot*100).toFixed(3)}%</td><td>${fmt(mg)}</td><td><span class="lead-pill lc" style="color:${win===sX?candColor(X.code):candColor(O.code)}">${win}</span></td></tr>`);});
   const def=Math.min(100,Math.max(0,localShare*100));
-  sim.innerHTML=`<div class="lc mut" style="margin-bottom:8px">% de los votos validos que faltan que se lleva ${sT}:</div>
+  sim.innerHTML=`<div class="lc mut" style="margin-bottom:8px">% de los votos validos que faltan que se lleva ${sX}:</div>
     <input type="range" id="scenSlider" min="0" max="100" step="0.1" value="${def.toFixed(1)}">
     <div class="row" style="justify-content:space-between;font-size:11px;color:var(--faint)"><span>0%</span><span id="scenSliderVal" class="num" style="color:var(--ink);font-size:15px">${def.toFixed(1)}%</span><span>100%</span></div>
     <div id="scenOut" style="margin-top:12px"></div>
-    <div class="note lc">referencias: ya contado ${(natShare*100).toFixed(1)}% · tendencia local ${(localShare*100).toFixed(1)}% · umbral para dar vuelta ${alcanzable?(fStar*100).toFixed(1)+"%":">100%"}</div>`;
+    <div class="note lc">referencias para ${sX}: ya contado ${(natShare*100).toFixed(1)}% · tendencia local ${(localShare*100).toFixed(1)}% · umbral para ganar ${needs>1?">100%":needs<=0?"ya gana":(needs*100).toFixed(1)+"%"}</div>`;
   const slider=document.getElementById("scenSlider"),out=document.getElementById("scenOut"),valEl=document.getElementById("scenSliderVal");
   function upd(){const f=(+slider.value)/100;valEl.textContent=(+slider.value).toFixed(1)+"%";
-    const fT=curT+f*Rvalid,fL=curL+(1-f)*Rvalid,tot=fT+fL||1;const win=fL>=fT?L:T;const mg=Math.abs(fL-fT);
-    out.innerHTML=`<div class="cand-line"><span class="swatch" style="background:${candColor(L.code)}"></span><span class="cand-name lc">${sL}</span><span class="bar"><span style="width:${(fL/tot*100).toFixed(2)}%;background:${candColor(L.code)}"></span></span><span class="cand-pct">${(fL/tot*100).toFixed(3)}%</span></div>
-      <div class="cand-line"><span class="swatch" style="background:${candColor(T.code)}"></span><span class="cand-name lc">${sT}</span><span class="bar"><span style="width:${(fT/tot*100).toFixed(2)}%;background:${candColor(T.code)}"></span></span><span class="cand-pct">${(fT/tot*100).toFixed(3)}%</span></div>
-      <div class="lc" style="margin-top:8px">resultado: gana <b style="color:${win===L?candColor(L.code):candColor(T.code)}">${candShort(win).toLowerCase()}</b> por <b class="num">${fmt(mg)}</b> votos</div>`;}
+    const fX=curX+f*Rvalid,fO=curO+(1-f)*Rvalid,tot=fX+fO||1;const win=fX>=fO?X:O;const mg=Math.abs(fX-fO);
+    out.innerHTML=`<div class="cand-line"><span class="swatch" style="background:${candColor(X.code)}"></span><span class="cand-name lc">${sX}</span><span class="bar"><span style="width:${(fX/tot*100).toFixed(2)}%;background:${candColor(X.code)}"></span></span><span class="cand-pct">${(fX/tot*100).toFixed(3)}%</span></div>
+      <div class="cand-line"><span class="swatch" style="background:${candColor(O.code)}"></span><span class="cand-name lc">${sO}</span><span class="bar"><span style="width:${(fO/tot*100).toFixed(2)}%;background:${candColor(O.code)}"></span></span><span class="cand-pct">${(fO/tot*100).toFixed(3)}%</span></div>
+      <div class="lc" style="margin-top:8px">resultado: gana <b style="color:${win===X?candColor(X.code):candColor(O.code)}">${candShort(win).toLowerCase()}</b> por <b class="num">${fmt(mg)}</b> votos</div>`;}
   slider.oninput=upd;upd();
 }
 
