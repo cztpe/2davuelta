@@ -269,8 +269,10 @@ function renderVerdict(){
   const v=document.getElementById("verdict");if(!EST.leader||!EST.trailing){v.innerHTML="";return;}
   const ld=candShort(EST.leader).toLowerCase(),tr=candShort(EST.trailing).toLowerCase();const amplia=EST.saldo<0;
   v.innerHTML=`<div class="verdict ${EST.enJuego?'hot':''}"><div class="h lc">${EST.enJuego?"lo pendiente alcanzaria para mover el resultado":"lo pendiente no alcanza para revertir la ventaja"}</div>
-    <div class="d lc">ventaja actual de ${ld}: <b class="num">${fmt(EST.ventaja)}</b> votos. saldo estimado de lo pendiente a favor de ${tr}: <b class="num">${fmt(Math.max(0,EST.saldo))}</b> votos
-    ${amplia?`(en realidad lo pendiente <b>amplia</b> la ventaja del lider en ~${fmt(-EST.saldo)} votos)`:``}. bajo el supuesto de que lo que falta se reparte como lo ya contado en cada zona.</div></div>`;
+    <div class="d lc">faltan contar ~<b class="num">${fmt(EST.pvTotal)}</b> votos (estimado). repartidos segun la tendencia de cada zona, ${amplia
+      ? `quedarian a favor de ${ld} por un neto de ~<b class="num">${fmt(-EST.saldo)}</b> votos, ampliando su ventaja de <b class="num">${fmt(EST.ventaja)}</b>.`
+      : `dejarian a ${tr} arriba en ese resto por un neto de ~<b class="num">${fmt(EST.saldo)}</b> votos. ese saldo es menor que la ventaja actual de ${ld} (<b class="num">${fmt(EST.ventaja)}</b> votos), asi que no alcanza para dar vuelta el resultado.`}
+    es una estimacion descriptiva: asume que lo que falta se reparte como lo ya contado en cada zona.</div></div>`;
 }
 function renderRem(){
   const wrap=document.getElementById("remCands");wrap.innerHTML="";const tot=DB.cands.reduce((s,c)=>s+EST.rem[c.code],0)||1;
